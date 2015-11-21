@@ -7,7 +7,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
@@ -20,15 +19,16 @@ public class LineSplit extends ApplicationAdapter {
 	ShapeRenderer shapeRenderer;
 	SpriteBatch batch;
 
-	Dot current;
+	Dot tmpdot;
 	Array<Dot> dots = new Array<Dot>();
-	Array<Points> lines = new Array<Points>();
+	Array<Line> lines = new Array<Line>();
+	Array<Vector2> caps = new Array<Vector2>();
 
 	BitmapFont bitmapFont;
 
 	float scale = 0.16f;
 
-	Dot test;
+	Dot cursor;
 
 	public LineSplit(int w, int h) {
 		ScreenWidth = w;
@@ -47,18 +47,20 @@ public class LineSplit extends ApplicationAdapter {
 		M
 	}
 
-	class Points {
+	class Line {
 		Vector2 start;
 		Vector2 end;
+		Color color;
 
-		public Points(Vector2 v1, Vector2 v2) {
+		public Line(Vector2 v1, Vector2 v2) {
 			start = v1;
 			end = v2;
 		}
 
-		public Points(Points p) {
+		public Line(Line p) {
 			start = p.start;
 			end = p.end;
+			color = p.color;
 		}
 	}
 
@@ -83,12 +85,13 @@ public class LineSplit extends ApplicationAdapter {
 		begin = new Vector2(pad + (pad / 2), pad + (pad / 2));
 		end = calcDir(begin, dir);
 
-		test = new Dot(Direction.M, begin, 0.05f);
-		test.sprite.setColor(Color.RED);
+		cursor = new Dot(Direction.M, begin, 0.05f);
+		cursor.sprite.setColor(Color.RED);
 
-		points = new Points(begin, begin);
+		tmpline = new Line(begin, begin);
+		tmpline.color = new Color(Color.LIME);
 
-		lines.add(points);
+		lines.add(tmpline);
 	}
 
 	Vector2 mouse = new Vector2(0,0);
@@ -105,22 +108,22 @@ public class LineSplit extends ApplicationAdapter {
 
 	float timeStarted;
 
-	Points points;
+	Line tmpline;
 
 	boolean dead = false;
 
-	float linewidth = 8.0f;
+	float linewidth = 16.0f;
 
-	@Override
-	public void render () {
-		Gdx.gl.glClearColor(0, 0, 0, 1);
-		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+	int currentColor = 0;
 
-		deltaTime = Gdx.graphics.getDeltaTime();
-		globalTime += deltaTime;
+	Vector2 mouseClick = new Vector2(0,0);
 
+	public void inputs() {
 		mouse.x = Gdx.input.getX();
 		mouse.y = ScreenHeight - Gdx.input.getY();
+
+		if(Gdx.input.justTouched()) mouseClick = new Vector2(mouse.x, mouse.y);
+		else mouseClick = new Vector2(0,0);
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.TAB)) edit = !edit;
 		if(Gdx.input.isKeyJustPressed(Input.Keys.A)) draw = !draw;
@@ -134,6 +137,131 @@ public class LineSplit extends ApplicationAdapter {
 		if(Gdx.input.isKeyJustPressed(Input.Keys.C) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) dotType = Direction.S;
 		if(Gdx.input.isKeyJustPressed(Input.Keys.X) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) dotType = Direction.SW;
 		if(Gdx.input.isKeyJustPressed(Input.Keys.S) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_4)) dotType = Direction.W;
+	}
+
+	public void update() {
+		if(edit) {
+			if(draw) {
+				if (tmpdot == null) {
+					tmpdot = new Dot(dotType, mouse, scale);
+				}
+
+				if (Gdx.input.justTouched()) {
+					for(Dot d : dots) {
+						if(!isInsideCircle(mouseClick, d.center, radius)) {
+						} else {
+							System.out.println("There is already a dot in position: " + d.center);
+						}
+					}
+					dots.add(tmpdot);
+					tmpdot = null;
+				} else {
+					Vector2 snap = new Vector2(0, 0);
+					snap.x = (float) (Math.floor(mouse.x / pad)) * pad;
+					snap.y = (float) (Math.floor(mouse.y / pad)) * pad;
+					snap.x += line;
+					snap.y += line;
+
+					tmpdot.update(dotType, snap, scale);
+				}
+			} else {
+				tmpdot = null;
+				if(Gdx.input.justTouched()) {
+					for(int i = 0; i < dots.size; i++) {
+						Dot d = dots.get(i);
+						if(isInsideCircle(mouseClick, d.center, radius)) {
+							dots.removeIndex(i);
+						}
+					}
+				}
+			}
+		} else {
+			tmpdot = null;
+		}
+
+		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) {
+			dir = Direction.N;
+			cursor.setCenter(new Vector2(pad + (pad / 2), pad + (pad / 2)));
+			begin = cursor.center;
+			end = calcDir(begin, dir);
+			lines.clear();
+			caps.clear();
+			tmpline.start = begin;
+			tmpline.end = begin;
+			lines.add(tmpline);
+			dead = false;
+			rnd = 10;
+			up = 0;
+			playanim = false;
+			playedanim = false;
+		}
+
+		if(Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !dead) {
+			play = !play;
+			timeStarted = globalTime;
+			caps.add(tmpline.start);
+		}
+
+		if(play && !dead) {
+			float timeSinceStarted = globalTime - timeStarted;
+
+			float percent;
+			if (dir == Direction.NW || dir == Direction.NE || dir == Direction.SW || dir == Direction.SE)
+				percent = timeSinceStarted / 0.3f;
+			else percent = timeSinceStarted / 0.2f;
+
+			Vector2 v = lerp(begin, end, percent);
+
+			cursor.setCenter(v);
+			tmpline.end = cursor.center;
+
+			if ((cursor.center.x < pad || cursor.center.x > ScreenWidth - pad) || (
+					cursor.center.y < pad || cursor.center.y > ScreenHeight - pad)) {
+				play = false;
+				dead = true;
+			}
+
+			if (percent >= 1.0f) {
+				cursor.setCenter(end);
+				begin = cursor.center;
+				timeStarted = globalTime;
+
+				for (Dot d : dots) {
+					if (isInsideCircle(cursor.center, d.center, 1)) {
+						tmpline.color = setColor();
+						currentColor++;
+						//tmpline.end = calcEnd(end, dir);
+						tmpline.end = end;
+						dir = d.direction;
+						lines.add(new Line(tmpline));
+						caps.add(tmpline.end);
+						tmpline.start = begin;
+						playanim = true;
+					}
+				}
+
+				end = calcDir(cursor.center, dir);
+			}
+		}
+	}
+
+	int rnd = 10;
+	int up = 0;
+	boolean playanim = false;
+	boolean playedanim = false;
+	float vert[] = {10, 10, 100, 400, 256, 740, 500, 700, 500, 400, 900, 600};
+ 	@Override
+	public void render () {
+
+		inputs();
+
+		update();
+
+		Gdx.gl.glClearColor(0, 0, 0, 1);
+		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+		deltaTime = Gdx.graphics.getDeltaTime();
+		globalTime += deltaTime;
 
 		shapeRenderer.begin();
 		shapeRenderer.set(ShapeRenderer.ShapeType.Line);
@@ -147,17 +275,52 @@ public class LineSplit extends ApplicationAdapter {
 		}
 		shapeRenderer.rect(pad, pad, ScreenWidth - (pad * 2), ScreenHeight - (pad * 2));
 
-
-		if(dead) shapeRenderer.setColor(Color.RED);
-		else shapeRenderer.setColor(Color.LIME);
-
-		shapeRenderer.end();
-
-		shapeRenderer.begin();
 		shapeRenderer.set(ShapeRenderer.ShapeType.Filled);
-		for(Points p : lines) {
-			shapeRenderer.rectLine(p.start, p.end, linewidth);
+		for(Line l : lines) {
+			if(dead) {
+				shapeRenderer.setColor(Color.RED);
+				shapeRenderer.rectLine(l.start, l.end, linewidth);
+			} else {
+				shapeRenderer.setColor(Color.GREEN);
+				shapeRenderer.rectLine(l.start, l.end, linewidth);
+			}
 		}
+
+		for(Vector2 v : caps) {
+			shapeRenderer.circle(v.x, v.y, linewidth / 2, 16);
+		}
+
+		/*
+		shapeRenderer.circle(400, 400, 20, 128);
+		shapeRenderer.arc(400, 320, 20, 0, 270, 10);
+
+		if(playanim){
+			playedanim = true;
+			//shapeRenderer.arc(120, 280, rnd, 270, 90, 45);
+			//if (rnd < 35) rnd++;
+
+			shapeRenderer.arc(120, 280, 35, 270, up, 45);
+			if (up < 90) up += 12;
+			else playanim = false;
+		}
+
+		if(!playanim && playedanim) {
+			shapeRenderer.arc(120, 280, 35, 270, 90, 45);
+		}
+
+		shapeRenderer.set(ShapeRenderer.ShapeType.Line);
+		shapeRenderer.circle(400, 480, 20);
+		shapeRenderer.arc(400, 560, 20, 0, 270);
+
+		int num = 20;
+		for(int i = 0;  i < 10; i++) {
+			shapeRenderer.circle(400, 640, num, 256);
+			num++;
+		}
+
+		shapeRenderer.polyline(vert);
+		*/
+
 		shapeRenderer.end();
 
 		batch.begin();
@@ -168,119 +331,32 @@ public class LineSplit extends ApplicationAdapter {
 			}
 		}
 
-		if(current != null) {
-			current.sprite.draw(batch);
+		if(tmpdot != null) {
+			tmpdot.sprite.draw(batch);
 		}
 
-		//test.sprite.draw(batch);
+		// cursor.sprite.draw(batch); // Debug
 
-		bitmapFont.draw(batch, "Direction: " + dir, ScreenWidth / 2, ScreenHeight - 30);
+		bitmapFont.draw(batch, "Direction: " + dir, ScreenWidth / 2, ScreenHeight - 10);
+		bitmapFont.draw(batch, "Mouse: " + mouse, ScreenWidth / 2, ScreenHeight - 30);
 
 		if(play) bitmapFont.draw(batch, "Play", 30, ScreenHeight - 10);
-		else bitmapFont.draw(batch, "Paused", 30, ScreenHeight - 10);
+		else     bitmapFont.draw(batch, "Paused", 30, ScreenHeight - 10);
 
 		if(edit) {
-			if(draw) {
-				if(current == null) {
-					current = new Dot(dotType, mouse, scale);
-				}
-
-				bitmapFont.draw(batch, "Draw mode", 30, ScreenHeight - 30);
-
-				if (Gdx.input.justTouched()) {
-					dots.add(current);
-					current = null;
-				} else {
-					Vector2 snap = new Vector2(0,0);
-					snap.x = (float)(Math.floor(mouse.x / pad)) * pad;
-					snap.y = (float)(Math.floor(mouse.y / pad)) * pad;
-					snap.x += line;
-					snap.y += line;
-
-					current.update(dotType, snap, scale);
-				}
-
-			} else {
-				current = null;
-
-				bitmapFont.draw(batch, "Erase mode", 30, ScreenHeight - 30);
-				batch.end();
-
-				beginblend();
-				for(Dot d : dots) {
-					shapeRenderer.circle(d.center.x, d.center.y, radius);
-				}
-				endblend();
-				for(int i = 0; i < dots.size; i++) {
-					Dot d = dots.get(i);
-					if(Gdx.input.justTouched()) {
-						if (isInsideCircle(mouse, d.center, radius)) {
-							dots.removeIndex(i);
-						}
-					}
-				}
-
-				batch.begin();
-			}
-		} else {
-			current = null;
+			if (draw) bitmapFont.draw(batch, "Draw mode", 30, ScreenHeight - 30);
+			else bitmapFont.draw(batch, "Erase mode", 30, ScreenHeight - 30);
 		}
 
 		batch.end();
 
-		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) {
-			dir = Direction.N;
-			test.setCenter(new Vector2(pad + (pad / 2), pad + (pad / 2)));
-			begin = test.center;
-			end = calcDir(begin, dir);
-			lines.clear();
-			points.start = begin;
-			points.end = begin;
-			lines.add(points);
-			dead = false;
-		}
-
-		if(Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !dead) {
-			play = !play;
-			timeStarted = globalTime;
-		}
-
-		if(play && !dead) {
-			float timeSinceStarted = globalTime - timeStarted;
-
-			float percent;
-			if(dir == Direction.NW ||  dir == Direction.NE || dir == Direction.SW || dir == Direction.SE) percent = timeSinceStarted / 0.3f;
-			else percent = timeSinceStarted / 0.2f;
-
-			Vector2 v = lerp(begin, end, percent);
-
-			test.setCenter(v);
-			points.end = test.center;
-
-			if((test.center.x < pad || test.center.x > ScreenWidth - pad) || (
-					test.center.y < pad || test.center.y > ScreenHeight - pad))
-			{
-				play = false;
-				dead = true;
+		if(edit && !draw) {
+			tmpdot = null;
+			beginblend();
+			for (Dot d : dots) {
+				shapeRenderer.circle(d.center.x, d.center.y, radius);
 			}
-
-			if(percent >= 1.0f) {
-				test.setCenter(end);
-				begin = test.center;
-				timeStarted = globalTime;
-
-				for(Dot d : dots) {
-					if(isInsideCircle(test.center, d.center, 1)) {
-						//points.end = calcEnd(end, dir);
-						points.end = end;
-						dir = d.direction;
-						lines.add(new Points(points));
-						points.start = begin;
-					}
-				}
-
-				end = calcDir(test.center, dir);
-			}
+			endblend();
 		}
 	}
 
@@ -384,5 +460,23 @@ public class LineSplit extends ApplicationAdapter {
 		}
 
 		return v;
+	}
+
+	public Color setColor() {
+		if(currentColor == 9) currentColor = 0;
+		Color c;
+		switch(currentColor) {
+			case 0: c = new Color(Color.LIME); break;
+			case 1: c = new Color(Color.CORAL); break;
+			case 2: c = new Color(Color.TEAL); break;
+			case 3: c = new Color(Color.GOLD); break;
+			case 4: c = new Color(Color.SALMON); break;
+			case 5: c = new Color(Color.VIOLET); break;
+			case 6: c = new Color(Color.CHARTREUSE); break;
+			case 7: c = new Color(Color.MAGENTA); break;
+			case 8: c = new Color(Color.YELLOW); break;
+			default: c = new Color(Color.WHITE);
+		}
+		return c;
 	}
 }
