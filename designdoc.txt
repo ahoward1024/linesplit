@@ -1,0 +1,16 @@
+--- IDEAS ---
+
+[Main]
+The player will select a starting Dot and specify a starting direction for the Dot to go in (any cardinal direction [N, NE, E, SE, S, SW, W, NW]). The cursor will travel over time hitting each Dot and change the cursor's behaviour in pushing the cursor in a particular direction (or in no direction at all) or modifying the cursor's state (signal strength, for example).
+
+[Signal]
+The cursor generates a "signal" that diminishes over time (a specified amount of blocks, like let's say three). Each time the cursor hits a Dot the directional Dot will act as an amplifier and the signal will regain to the maximum amount. If the signal hits a blank Dot (no directional arrow) the signal will diminish. If the signal is "gone" before all amplifier and dampener Dots are hit the player must try again to hit all the Dots. If the signal hits a wall it will diminish (? [Perhaps the signal bounces?]).
+
+[Snake]
+Much like the game snake the line will "destroy" itself upon touching itself or a wall. The object is to "eat" all of the Dots on the screen.
+
+[Colors]
+In the game area there are many directional dots of many different colors. The cursor's color will be set to the color of the starting Dot the player chooses. If the player hits a Dot that is not the same color as it, the cursor will be destroyed. The cursor must make it to a "safe" (blank) Dot in order to not be destroyed. The objective is to clear all colors of the off the screen. If the cursor is destroyed _all_ Dots are put back on screen.
+
+[Two Player]
+Players face head to head to see how many dots they can collect before running into one another. Player One chooses a starting dot and direction and then Player Two does the same. P2 can see what Dot P1 selected, but not the direction. If P1's cursor hit's P2's line or vice versa the hitting cursor dies.

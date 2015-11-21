@@ -26,9 +26,9 @@ public class LineSplit extends ApplicationAdapter {
 
 	BitmapFont bitmapFont;
 
-	float scale = 0.16f;
+	float scale = 0.06f;
 
-	Dot cursor;
+	Dot cursor; // TODO create cursor class that is independent of Dot and can be used by ShapeRenderer.
 
 	public LineSplit(int w, int h) {
 		ScreenWidth = w;
@@ -76,6 +76,7 @@ public class LineSplit extends ApplicationAdapter {
 		batch = new SpriteBatch();
 
 		bitmapFont = new BitmapFont();
+		bitmapFont.setColor(Color.BLACK);
 
 		botedge = new Vector2(pad, pad);
 		topedge = new Vector2(ScreenWidth - pad, ScreenHeight - pad);
@@ -86,14 +87,19 @@ public class LineSplit extends ApplicationAdapter {
 		end = calcDir(begin, dir);
 
 		cursor = new Dot(Direction.M, begin, 0.05f);
-		cursor.sprite.setColor(Color.RED);
+		cursor.sprite.setScale(linewidth / 1000.0f);
+		cursor.sprite.setColor(linelifecolor);
 
 		tmpline = new Line(begin, begin);
 		tmpline.color = new Color(Color.LIME);
 
 		lines.add(tmpline);
+
+		dot = new Dot(Direction.E, new Vector2(120, 280), scale);
+		dots.add(dot);
 	}
 
+	// TODO cleanup
 	Vector2 mouse = new Vector2(0,0);
 	Vector2 botedge;
 	Vector2 topedge;
@@ -117,6 +123,8 @@ public class LineSplit extends ApplicationAdapter {
 	int currentColor = 0;
 
 	Vector2 mouseClick = new Vector2(0,0);
+
+	Dot dot;
 
 	public void inputs() {
 		mouse.x = Gdx.input.getX();
@@ -144,19 +152,23 @@ public class LineSplit extends ApplicationAdapter {
 	public void update() {
 		if(edit) {
 			if(draw) {
-				if (tmpdot == null) {
+				if(tmpdot == null) {
 					tmpdot = new Dot(dotType, mouse, scale);
 				}
 
-				if (Gdx.input.justTouched()) {
+				if(Gdx.input.justTouched()) {
+					boolean isdot = false;
 					for(Dot d : dots) {
-						if(!isInsideCircle(mouseClick, d.center, radius)) {
-						} else {
-							System.out.println("There is already a dot in position: " + d.center);
+						if(isInsideCircle(mouseClick, d.center, radius)) {
+							isdot = true;
 						}
 					}
-					dots.add(tmpdot);
-					tmpdot = null;
+					if(!isdot) {
+						dots.add(tmpdot);
+						tmpdot = null;
+					} else {
+						System.out.println("There is already a dot in position: " + mouseClick);
+					}
 				} else {
 					Vector2 snap = new Vector2(0, 0);
 					snap.x = (float) (Math.floor(mouse.x / pad)) * pad;
@@ -208,7 +220,7 @@ public class LineSplit extends ApplicationAdapter {
 			float timeSinceStarted = globalTime - timeStarted;
 
 			float percent;
-			if (dir == Direction.NW || dir == Direction.NE || dir == Direction.SW || dir == Direction.SE)
+			if(dir == Direction.NW || dir == Direction.NE || dir == Direction.SW || dir == Direction.SE)
 				percent = timeSinceStarted / 0.3f;
 			else percent = timeSinceStarted / 0.2f;
 
@@ -217,22 +229,20 @@ public class LineSplit extends ApplicationAdapter {
 			cursor.setCenter(v);
 			tmpline.end = cursor.center;
 
-			if ((cursor.center.x < pad || cursor.center.x > ScreenWidth - pad) || (
+			if((cursor.center.x < pad || cursor.center.x > ScreenWidth - pad) || (
 					cursor.center.y < pad || cursor.center.y > ScreenHeight - pad)) {
 				play = false;
 				dead = true;
 			}
 
-			if (percent >= 1.0f) {
+			if(percent >= 1.0f) {
 				cursor.setCenter(end);
 				begin = cursor.center;
 				timeStarted = globalTime;
 
-				for (Dot d : dots) {
-					if (isInsideCircle(cursor.center, d.center, 1)) {
-						tmpline.color = setColor();
+				for(Dot d : dots) {
+					if(isInsideCircle(cursor.center, d.center, 1)) {
 						currentColor++;
-						//tmpline.end = calcEnd(end, dir);
 						tmpline.end = end;
 						dir = d.direction;
 						lines.add(new Line(tmpline));
@@ -251,22 +261,27 @@ public class LineSplit extends ApplicationAdapter {
 	int up = 0;
 	boolean playanim = false;
 	boolean playedanim = false;
-	float vert[] = {10, 10, 100, 400, 256, 740, 500, 700, 500, 400, 900, 600};
- 	@Override
+
+	// TODO create Google Colors class
+	Color dotcolor = new Color(0.31f, 0.765f, 0.969f, 1.0f);
+	Color linedeathcolor = new Color(0.008f, 0.533f, 0.82f, 1.0f);
+	Color linelifecolor = new Color(0.012f, 0.608f, 0.898f, 1.0f);
+	Color backgroundcolor = new Color(0.882f, 0.961f, 0.996f, 1.0f);
+
+	@Override
 	public void render () {
 
 		inputs();
 
 		update();
 
-		Gdx.gl.glClearColor(0, 0, 0, 1);
+		Gdx.gl.glClearColor(backgroundcolor.r, backgroundcolor.b, backgroundcolor.g, backgroundcolor.a);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
 		deltaTime = Gdx.graphics.getDeltaTime();
 		globalTime += deltaTime;
 
-		shapeRenderer.begin();
-		shapeRenderer.set(ShapeRenderer.ShapeType.Line);
+		shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
 		shapeRenderer.setColor(Color.DARK_GRAY);
 		for(int i = pad; i <= ScreenWidth - (pad * 2); i += pad) {
@@ -280,10 +295,11 @@ public class LineSplit extends ApplicationAdapter {
 		shapeRenderer.set(ShapeRenderer.ShapeType.Filled);
 		for(Line l : lines) {
 			if(dead) {
-				shapeRenderer.setColor(Color.RED);
+				shapeRenderer.setColor(linedeathcolor); // DEATH
 				shapeRenderer.rectLine(l.start, l.end, linewidth);
+				cursor.sprite.setColor(linedeathcolor);
 			} else {
-				shapeRenderer.setColor(Color.GREEN);
+				shapeRenderer.setColor(linelifecolor); // LIFE
 				shapeRenderer.rectLine(l.start, l.end, linewidth);
 			}
 		}
@@ -292,38 +308,34 @@ public class LineSplit extends ApplicationAdapter {
 			shapeRenderer.circle(v.x, v.y, linewidth / 2, 16);
 		}
 
+		shapeRenderer.end();
 
-		shapeRenderer.circle(400, 400, 20, 128);
-		shapeRenderer.arc(400, 320, 20, 0, 270, 10);
+		batch.begin();
+		cursor.sprite.draw(batch);
+		batch.end();
+
+		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
 		if(playanim){
-			playedanim = true;
-			//shapeRenderer.arc(120, 280, rnd, 270, 90, 45);
-			//if (rnd < 35) rnd++;
+			if(!playedanim) {
+				shapeRenderer.arc(120, 280, 40, 270, up, 45);
+				shapeRenderer.arc(120, 280, 40, 270, -up, 45);
+				if (up < 180) {
+					up += 7;
+				} else {
+					playedanim = true;
+				}
+			} else {
+				shapeRenderer.arc(120, 280, 40, 0, up, 45);
+				shapeRenderer.arc(120, 280, 40, 0, -up, 45);
+				if (up > 0) {
+					up -= 7;
+				} else {
+					playanim = false;
+				}
+			}
 
-			shapeRenderer.arc(120, 280, 35, 270, up, 45);
-			shapeRenderer.arc(120, 280, 35, 270, -up, 45);
-			if (up < 180) up += 5;
-			else playanim = false;
 		}
-
-		if(!playanim && playedanim) {
-			shapeRenderer.arc(120, 280, 35, 270, 180, 45);
-			shapeRenderer.arc(120, 280, 35, 270, -180, 45);
-		}
-
-		shapeRenderer.set(ShapeRenderer.ShapeType.Line);
-		shapeRenderer.circle(400, 480, 20);
-		shapeRenderer.arc(400, 560, 20, 0, 270);
-
-		int num = 20;
-		for(int i = 0;  i < 10; i++) {
-			shapeRenderer.circle(400, 640, num, 256);
-			num++;
-		}
-
-		shapeRenderer.polyline(vert);
-
 
 		shapeRenderer.end();
 
@@ -339,10 +351,14 @@ public class LineSplit extends ApplicationAdapter {
 			tmpdot.sprite.draw(batch);
 		}
 
-		// cursor.sprite.draw(batch); // Debug
 
 		bitmapFont.draw(batch, "Direction: " + dir, ScreenWidth / 2, ScreenHeight - 10);
-		bitmapFont.draw(batch, "Mouse: " + mouse, ScreenWidth / 2, ScreenHeight - 30);
+		bitmapFont.draw(batch, "Cursor: " + cursor.center, ScreenWidth / 2, ScreenHeight - 30);
+		bitmapFont.draw(batch, "Mouse: " + mouse, ScreenWidth / 2, ScreenHeight - 50);
+
+		bitmapFont.draw(batch, "Dots: " + dots.size, ScreenWidth - 70, ScreenHeight - 10);
+		bitmapFont.draw(batch, "Lines: " + lines.size, ScreenWidth - 70, ScreenHeight - 30);
+		bitmapFont.draw(batch, "Caps: " + caps.size, ScreenWidth - 70, ScreenHeight - 50);
 
 		if(play) bitmapFont.draw(batch, "Play", 30, ScreenHeight - 10);
 		else     bitmapFont.draw(batch, "Paused", 30, ScreenHeight - 10);
@@ -357,7 +373,7 @@ public class LineSplit extends ApplicationAdapter {
 		if(edit && !draw) {
 			tmpdot = null;
 			beginblend();
-			for (Dot d : dots) {
+			for(Dot d : dots) {
 				shapeRenderer.circle(d.center.x, d.center.y, radius);
 			}
 			endblend();
@@ -369,7 +385,7 @@ public class LineSplit extends ApplicationAdapter {
 		Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 		shapeRenderer.begin();
 		shapeRenderer.set(ShapeRenderer.ShapeType.Filled);
-		shapeRenderer.setColor(1, 0, 0, 0.5f);
+		shapeRenderer.setColor(1, 0, 0, 0.5f); // RED half ALPHA
 	}
 
 	public void endblend() {
@@ -399,88 +415,41 @@ public class LineSplit extends ApplicationAdapter {
 		switch(dir) {
 			case N: {
 				v = new Vector2(start.x, start.y + pad);
-			} break;
+			}
+			break;
 			case NE: {
 				v = new Vector2(start.x + pad, start.y + pad);
-			} break;
+			}
+			break;
 			case E: {
 				v = new Vector2(start.x + pad, start.y);
-			} break;
+			}
+			break;
 			case SE: {
 				v = new Vector2(start.x + pad, start.y - pad);
-			} break;
+			}
+			break;
 			case S: {
 				v = new Vector2(start.x, start.y - pad);
-			} break;
+			}
+			break;
 			case SW: {
 				v = new Vector2(start.x - pad, start.y - pad);
-			} break;
+			}
+			break;
 			case W: {
 				v = new Vector2(start.x - pad, start.y);
-			} break;
+			}
+			break;
 			case NW: {
 				v = new Vector2(start.x - pad, start.y + pad);
-			} break;
+			}
+			break;
 			case M: {
 				v = start;
 			}
 		}
 
 		return v;
-	}
-
-	public Vector2 calcEnd(Vector2 end, Direction dir) {
-		float div = 4.0f;
-		float add = 0.5f;
-		Vector2 v = new Vector2(0.0f, 0.0f);
-		switch(dir) {
-			case N: {
-				v = new Vector2(end.x, end.y + (linewidth / 2));
-			} break;
-			case NE: {
-				v = new Vector2(end.x + (linewidth / div) + add, end.y + (linewidth / div) + add);
-			} break;
-			case E: {
-				v = new Vector2(end.x + (linewidth / 2), end.y);
-			} break;
-			case SE: {
-				v = new Vector2(end.x + (linewidth / div) + add, end.y - (linewidth / div) + add);
-			} break;
-			case S: {
-				v = new Vector2(end.x, end.y - (linewidth / 2));
-			} break;
-			case SW: {
-				v = new Vector2(end.x - (linewidth / div) + add, end.y - (linewidth / div) + add);
-			} break;
-			case W: {
-				v = new Vector2(end.x - (linewidth / 2), end.y);
-			} break;
-			case NW: {
-				v = new Vector2(end.x - (linewidth / div) + add, end.y + (linewidth / div) + add);
-			} break;
-			case M: {
-				v = end;
-			}
-		}
-
-		return v;
-	}
-
-	public Color setColor() {
-		if(currentColor == 9) currentColor = 0;
-		Color c;
-		switch(currentColor) {
-			case 0: c = new Color(Color.LIME); break;
-			case 1: c = new Color(Color.CORAL); break;
-			case 2: c = new Color(Color.TEAL); break;
-			case 3: c = new Color(Color.GOLD); break;
-			case 4: c = new Color(Color.SALMON); break;
-			case 5: c = new Color(Color.VIOLET); break;
-			case 6: c = new Color(Color.CHARTREUSE); break;
-			case 7: c = new Color(Color.MAGENTA); break;
-			case 8: c = new Color(Color.YELLOW); break;
-			default: c = new Color(Color.WHITE);
-		}
-		return c;
 	}
 }
