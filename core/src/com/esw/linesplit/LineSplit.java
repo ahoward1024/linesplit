@@ -66,9 +66,9 @@ public class LineSplit extends ApplicationAdapter {
 
 	@Override
 	public void create () {
-		pad = 80;
+		pad = 80; // GCD of ScreenWidth and ScreenHeight
 		line = pad / 2;
-		radius = line - (line / 4);
+		radius = line - (line / 4); // Radius of erase circles
 
 		shapeRenderer = new ShapeRenderer();
 		shapeRenderer.setAutoShapeType(true);
@@ -127,6 +127,8 @@ public class LineSplit extends ApplicationAdapter {
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.TAB)) edit = !edit;
 		if(Gdx.input.isKeyJustPressed(Input.Keys.A)) draw = !draw;
+
+		if(Gdx.input.isKeyJustPressed(Input.Keys.B)) playanim = true;
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.D) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_5)) dotType = Direction.M;
 		if(Gdx.input.isKeyJustPressed(Input.Keys.W) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_7)) dotType = Direction.NW;
@@ -290,7 +292,7 @@ public class LineSplit extends ApplicationAdapter {
 			shapeRenderer.circle(v.x, v.y, linewidth / 2, 16);
 		}
 
-		/*
+
 		shapeRenderer.circle(400, 400, 20, 128);
 		shapeRenderer.arc(400, 320, 20, 0, 270, 10);
 
@@ -300,12 +302,14 @@ public class LineSplit extends ApplicationAdapter {
 			//if (rnd < 35) rnd++;
 
 			shapeRenderer.arc(120, 280, 35, 270, up, 45);
-			if (up < 90) up += 12;
+			shapeRenderer.arc(120, 280, 35, 270, -up, 45);
+			if (up < 180) up += 5;
 			else playanim = false;
 		}
 
 		if(!playanim && playedanim) {
-			shapeRenderer.arc(120, 280, 35, 270, 90, 45);
+			shapeRenderer.arc(120, 280, 35, 270, 180, 45);
+			shapeRenderer.arc(120, 280, 35, 270, -180, 45);
 		}
 
 		shapeRenderer.set(ShapeRenderer.ShapeType.Line);
@@ -319,7 +323,7 @@ public class LineSplit extends ApplicationAdapter {
 		}
 
 		shapeRenderer.polyline(vert);
-		*/
+
 
 		shapeRenderer.end();
 
