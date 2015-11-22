@@ -5,7 +5,9 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
@@ -28,7 +30,7 @@ public class LineSplit extends ApplicationAdapter {
 
 	float scale = 0.06f;
 
-	Dot cursor; // TODO create cursor class that is independent of Dot and can be used by ShapeRenderer.
+	Cursor cursor; // TODO create cursor class that is independent of Dot and can be used by ShapeRenderer.
 
 	public LineSplit(int w, int h) {
 		ScreenWidth = w;
@@ -64,6 +66,36 @@ public class LineSplit extends ApplicationAdapter {
 		}
 	}
 
+	class Cursor {
+		Vector2 center;
+		float radius;
+
+		public Cursor(Vector2 v, float r) {
+			center = v;
+			radius = r;
+		}
+	}
+
+	class Dot {
+
+		Sprite sprite;
+		Vector2 center;
+		LineSplit.Direction direction;
+
+		public Dot(LineSplit.Direction d, Vector2 v, float s) {
+			update(d, v, s);
+		}
+
+		public void update(LineSplit.Direction d, Vector2 v, float scale) {
+			direction = d;
+			center = v;
+			sprite = new Sprite(new Texture(Gdx.files.internal(d + ".png")));
+			sprite.setScale(scale);
+			sprite.setCenter(v.x, v.y);
+		}
+
+	}
+
 	@Override
 	public void create () {
 		pad = 80; // GCD of ScreenWidth and ScreenHeight
@@ -86,9 +118,7 @@ public class LineSplit extends ApplicationAdapter {
 		begin = new Vector2(pad + (pad / 2), pad + (pad / 2));
 		end = calcDir(begin, dir);
 
-		cursor = new Dot(Direction.M, begin, 0.05f);
-		cursor.sprite.setScale(linewidth / 1000.0f);
-		cursor.sprite.setColor(linelifecolor);
+		cursor = new Cursor(begin, linewidth / 2);
 
 		tmpline = new Line(begin, begin);
 		tmpline.color = new Color(Color.LIME);
@@ -150,6 +180,7 @@ public class LineSplit extends ApplicationAdapter {
 	}
 
 	public void update() {
+		// FIXME: bad framerate when editing
 		if(edit) {
 			if(draw) {
 				if(tmpdot == null) {
@@ -195,7 +226,7 @@ public class LineSplit extends ApplicationAdapter {
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) {
 			dir = Direction.N;
-			cursor.setCenter(new Vector2(pad + (pad / 2), pad + (pad / 2)));
+			cursor.center = new Vector2(pad + (pad / 2), pad + (pad / 2));
 			begin = cursor.center;
 			end = calcDir(begin, dir);
 			lines.clear();
@@ -224,19 +255,17 @@ public class LineSplit extends ApplicationAdapter {
 				percent = timeSinceStarted / 0.3f;
 			else percent = timeSinceStarted / 0.2f;
 
-			Vector2 v = lerp(begin, end, percent);
-
-			cursor.setCenter(v);
+			cursor.center = lerp(begin, end, percent);
 			tmpline.end = cursor.center;
 
-			if((cursor.center.x < pad || cursor.center.x > ScreenWidth - pad) || (
-					cursor.center.y < pad || cursor.center.y > ScreenHeight - pad)) {
+			if((cursor.center.x < (pad + cursor.radius) || cursor.center.x > ScreenWidth - pad - cursor.radius) || (
+					cursor.center.y < (pad + cursor.radius) || cursor.center.y > ScreenHeight - pad - cursor.radius)) {
 				play = false;
 				dead = true;
 			}
 
 			if(percent >= 1.0f) {
-				cursor.setCenter(end);
+				cursor.center = end;
 				begin = cursor.center;
 				timeStarted = globalTime;
 
@@ -262,11 +291,9 @@ public class LineSplit extends ApplicationAdapter {
 	boolean playanim = false;
 	boolean playedanim = false;
 
-	// TODO create Google Colors class
-	Color dotcolor = new Color(0.31f, 0.765f, 0.969f, 1.0f);
-	Color linedeathcolor = new Color(0.008f, 0.533f, 0.82f, 1.0f);
-	Color linelifecolor = new Color(0.012f, 0.608f, 0.898f, 1.0f);
-	Color backgroundcolor = new Color(0.882f, 0.961f, 0.996f, 1.0f);
+	Color linedeathcolor = new Color(GColor.LIGHT_BLUE_800);
+	Color linelifecolor = new Color(GColor.LIGHT_BLUE_600);
+	Color backgroundcolor = new Color(GColor.LIGHT_BLUE_50);
 
 	@Override
 	public void render () {
@@ -275,7 +302,7 @@ public class LineSplit extends ApplicationAdapter {
 
 		update();
 
-		Gdx.gl.glClearColor(backgroundcolor.r, backgroundcolor.b, backgroundcolor.g, backgroundcolor.a);
+		Gdx.gl.glClearColor(backgroundcolor.r, backgroundcolor.g, backgroundcolor.b, backgroundcolor.a);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
 		deltaTime = Gdx.graphics.getDeltaTime();
@@ -297,7 +324,6 @@ public class LineSplit extends ApplicationAdapter {
 			if(dead) {
 				shapeRenderer.setColor(linedeathcolor); // DEATH
 				shapeRenderer.rectLine(l.start, l.end, linewidth);
-				cursor.sprite.setColor(linedeathcolor);
 			} else {
 				shapeRenderer.setColor(linelifecolor); // LIFE
 				shapeRenderer.rectLine(l.start, l.end, linewidth);
@@ -308,13 +334,7 @@ public class LineSplit extends ApplicationAdapter {
 			shapeRenderer.circle(v.x, v.y, linewidth / 2, 16);
 		}
 
-		shapeRenderer.end();
-
-		batch.begin();
-		cursor.sprite.draw(batch);
-		batch.end();
-
-		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+		shapeRenderer.circle(cursor.center.x, cursor.center.y, cursor.radius);
 
 		if(playanim){
 			if(!playedanim) {
@@ -397,6 +417,7 @@ public class LineSplit extends ApplicationAdapter {
 		return Math.pow((center.x - testpoint.x), 2) + Math.pow((center.y - testpoint.y), 2) <= Math.pow(radius, 2);
 	}
 
+	@SuppressWarnings("unused")
 	public static float lerp(float edge0, float edge1, float t) {
 		return (1 - t) * edge0 + t * edge1;
 	}
