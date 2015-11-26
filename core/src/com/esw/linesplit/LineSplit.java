@@ -22,15 +22,45 @@ public class LineSplit extends ApplicationAdapter {
 	SpriteBatch batch;
 
 	Dot tmpdot;
+	Line tmpline;
+	float linewidth = 16.0f;
+	float scale = 0.06f;
+	Direction currentDirection;
+	Vector2 lineStart, lineEnd;
+
+	Cursor cursor;
+
 	Array<Dot> dots = new Array<Dot>();
 	Array<Line> lines = new Array<Line>();
 	Array<Vector2> caps = new Array<Vector2>();
 
-	BitmapFont bitmapFont;
+	BitmapFont debugMessage;
 
-	float scale = 0.06f;
+	Vector2 mouse = new Vector2(0,0);
+	Vector2 mouseClick = new Vector2(0,0);
 
-	Cursor cursor; // TODO create cursor class that is independent of Dot and can be used by ShapeRenderer.
+	Vector2 botedge;
+	Vector2 topedge;
+	boolean edit = false;
+	Direction dotType = Direction.N;
+	boolean draw = true;
+	boolean play = false;
+
+	float deltaTime;
+	float globalTime;
+
+	boolean dead = false;
+
+	int animCounter = 0;
+	boolean playanim = false;
+	boolean playedanim = false;
+	float timeStarted;
+
+	Color linedeathcolor = new Color(GColor.LIGHT_BLUE_800);
+	Color linelifecolor = new Color(GColor.LIGHT_BLUE_600);
+	Color backgroundcolor = new Color(GColor.LIGHT_BLUE_50);
+
+	//===================================================================================================
 
 	public LineSplit(int w, int h) {
 		ScreenWidth = w;
@@ -107,54 +137,26 @@ public class LineSplit extends ApplicationAdapter {
 
 		batch = new SpriteBatch();
 
-		bitmapFont = new BitmapFont();
-		bitmapFont.setColor(Color.BLACK);
+		debugMessage = new BitmapFont();
+		debugMessage.setColor(Color.BLACK);
 
 		botedge = new Vector2(pad, pad);
 		topedge = new Vector2(ScreenWidth - pad, ScreenHeight - pad);
 
-		dir = Direction.N;
+		currentDirection = Direction.N;
 
-		begin = new Vector2(pad + (pad / 2), pad + (pad / 2));
-		end = calcDir(begin, dir);
+		lineStart = new Vector2(pad + (pad / 2), pad + (pad / 2));
+		lineEnd = calcDir(lineStart, currentDirection);
 
-		cursor = new Cursor(begin, linewidth / 2);
+		cursor = new Cursor(lineStart, linewidth / 2);
 
-		tmpline = new Line(begin, begin);
+		tmpline = new Line(lineStart, lineStart);
 		tmpline.color = new Color(Color.LIME);
 
 		lines.add(tmpline);
 
-		dot = new Dot(Direction.E, new Vector2(120, 280), scale);
-		dots.add(dot);
+		dots.add(new Dot(Direction.E, new Vector2(120, 280), scale));
 	}
-
-	// TODO cleanup
-	Vector2 mouse = new Vector2(0,0);
-	Vector2 botedge;
-	Vector2 topedge;
-	boolean edit = false;
-	Direction dotType = Direction.N;
-	boolean draw = true;
-	float deltaTime;
-	float globalTime;
-	boolean play = false;
-	Direction dir;
-	Vector2 begin, end;
-
-	float timeStarted;
-
-	Line tmpline;
-
-	boolean dead = false;
-
-	float linewidth = 16.0f;
-
-	int currentColor = 0;
-
-	Vector2 mouseClick = new Vector2(0,0);
-
-	Dot dot;
 
 	public void inputs() {
 		mouse.x = Gdx.input.getX();
@@ -225,18 +227,17 @@ public class LineSplit extends ApplicationAdapter {
 		}
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) {
-			dir = Direction.N;
+			currentDirection = Direction.N;
 			cursor.center = new Vector2(pad + (pad / 2), pad + (pad / 2));
-			begin = cursor.center;
-			end = calcDir(begin, dir);
+			lineStart = cursor.center;
+			lineEnd = calcDir(lineStart, currentDirection);
 			lines.clear();
 			caps.clear();
-			tmpline.start = begin;
-			tmpline.end = begin;
+			tmpline.start = lineStart;
+			tmpline.end = lineStart;
 			lines.add(tmpline);
 			dead = false;
-			rnd = 10;
-			up = 0;
+			animCounter = 0;
 			playanim = false;
 			playedanim = false;
 		}
@@ -251,11 +252,11 @@ public class LineSplit extends ApplicationAdapter {
 			float timeSinceStarted = globalTime - timeStarted;
 
 			float percent;
-			if(dir == Direction.NW || dir == Direction.NE || dir == Direction.SW || dir == Direction.SE)
+			if(currentDirection == Direction.NW || currentDirection == Direction.NE || currentDirection == Direction.SW || currentDirection == Direction.SE)
 				percent = timeSinceStarted / 0.3f;
 			else percent = timeSinceStarted / 0.2f;
 
-			cursor.center = lerp(begin, end, percent);
+			cursor.center = lerp(lineStart, lineEnd, percent);
 			tmpline.end = cursor.center;
 
 			if((cursor.center.x < (pad + cursor.radius) || cursor.center.x > ScreenWidth - pad - cursor.radius) || (
@@ -265,35 +266,25 @@ public class LineSplit extends ApplicationAdapter {
 			}
 
 			if(percent >= 1.0f) {
-				cursor.center = end;
-				begin = cursor.center;
+				cursor.center = lineEnd;
+				lineStart = cursor.center;
 				timeStarted = globalTime;
 
 				for(Dot d : dots) {
 					if(isInsideCircle(cursor.center, d.center, 1)) {
-						currentColor++;
-						tmpline.end = end;
-						dir = d.direction;
+						tmpline.end = lineEnd;
+						currentDirection = d.direction;
 						lines.add(new Line(tmpline));
 						caps.add(tmpline.end);
-						tmpline.start = begin;
+						tmpline.start = lineStart;
 						playanim = true;
 					}
 				}
 
-				end = calcDir(cursor.center, dir);
+				lineEnd = calcDir(cursor.center, currentDirection);
 			}
 		}
 	}
-
-	int rnd = 10;
-	int up = 0;
-	boolean playanim = false;
-	boolean playedanim = false;
-
-	Color linedeathcolor = new Color(GColor.LIGHT_BLUE_800);
-	Color linelifecolor = new Color(GColor.LIGHT_BLUE_600);
-	Color backgroundcolor = new Color(GColor.LIGHT_BLUE_50);
 
 	@Override
 	public void render () {
@@ -338,18 +329,18 @@ public class LineSplit extends ApplicationAdapter {
 
 		if(playanim){
 			if(!playedanim) {
-				shapeRenderer.arc(120, 280, 40, 270, up, 45);
-				shapeRenderer.arc(120, 280, 40, 270, -up, 45);
-				if (up < 180) {
-					up += 7;
+				shapeRenderer.arc(120, 280, 40, 270, animCounter, 45);
+				shapeRenderer.arc(120, 280, 40, 270, -animCounter, 45);
+				if (animCounter < 180) {
+					animCounter += 7;
 				} else {
 					playedanim = true;
 				}
 			} else {
-				shapeRenderer.arc(120, 280, 40, 0, up, 45);
-				shapeRenderer.arc(120, 280, 40, 0, -up, 45);
-				if (up > 0) {
-					up -= 7;
+				shapeRenderer.arc(120, 280, 40, 0, animCounter, 45);
+				shapeRenderer.arc(120, 280, 40, 0, -animCounter, 45);
+				if (animCounter > 0) {
+					animCounter -= 7;
 				} else {
 					playanim = false;
 				}
@@ -372,20 +363,20 @@ public class LineSplit extends ApplicationAdapter {
 		}
 
 
-		bitmapFont.draw(batch, "Direction: " + dir, ScreenWidth / 2, ScreenHeight - 10);
-		bitmapFont.draw(batch, "Cursor: " + cursor.center, ScreenWidth / 2, ScreenHeight - 30);
-		bitmapFont.draw(batch, "Mouse: " + mouse, ScreenWidth / 2, ScreenHeight - 50);
+		debugMessage.draw(batch, "Direction: " + currentDirection, ScreenWidth / 2, ScreenHeight - 10);
+		debugMessage.draw(batch, "Cursor: " + cursor.center, ScreenWidth / 2, ScreenHeight - 30);
+		debugMessage.draw(batch, "Mouse: " + mouse, ScreenWidth / 2, ScreenHeight - 50);
 
-		bitmapFont.draw(batch, "Dots: " + dots.size, ScreenWidth - 70, ScreenHeight - 10);
-		bitmapFont.draw(batch, "Lines: " + lines.size, ScreenWidth - 70, ScreenHeight - 30);
-		bitmapFont.draw(batch, "Caps: " + caps.size, ScreenWidth - 70, ScreenHeight - 50);
+		debugMessage.draw(batch, "Dots: " + dots.size, ScreenWidth - 70, ScreenHeight - 10);
+		debugMessage.draw(batch, "Lines: " + lines.size, ScreenWidth - 70, ScreenHeight - 30);
+		debugMessage.draw(batch, "Caps: " + caps.size, ScreenWidth - 70, ScreenHeight - 50);
 
-		if(play) bitmapFont.draw(batch, "Play", 30, ScreenHeight - 10);
-		else     bitmapFont.draw(batch, "Paused", 30, ScreenHeight - 10);
+		if(play) debugMessage.draw(batch, "Play", 30, ScreenHeight - 10);
+		else     debugMessage.draw(batch, "Paused", 30, ScreenHeight - 10);
 
 		if(edit) {
-			if (draw) bitmapFont.draw(batch, "Draw mode", 30, ScreenHeight - 30);
-			else bitmapFont.draw(batch, "Erase mode", 30, ScreenHeight - 30);
+			if (draw) debugMessage.draw(batch, "Draw mode", 30, ScreenHeight - 30);
+			else debugMessage.draw(batch, "Erase mode", 30, ScreenHeight - 30);
 		}
 
 		batch.end();
