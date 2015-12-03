@@ -21,15 +21,15 @@ public class LineSplit extends ApplicationAdapter {
 	ShapeRenderer shapeRenderer;
 	SpriteBatch batch;
 
-	Dot tmpdot;
-	Line tmpline;
+	Dot currentEditDot;
+	Line currentLine;
 	float linewidth = 16.0f;
-	float scale = 0.06f;
+	float dotScale = 0.06f;
 	Direction currentDirection;
 
-	Vector2 lineStart, lineEnd;
+	Vector2 lastPosition, nextPosition;
 
-	Cursor head;
+	Cursor cursor;
 
 	Array<Dot> dots = new Array<Dot>();
 	Array<Line> lines = new Array<Line>();
@@ -121,17 +121,17 @@ public class LineSplit extends ApplicationAdapter {
 		Vector2 center;
 		LineSplit.Direction direction;
 
-		public Dot(LineSplit.Direction d, Vector2 v, float s) {
-			update(d, v, s);
+		public Dot(LineSplit.Direction direction, Vector2 center, float scale) {
+			update(direction, center, scale);
 		}
 
-		public void update(LineSplit.Direction d, Vector2 v, float scale) {
-			direction = d;
-			center = v;
+		public void update(LineSplit.Direction direction, Vector2 center, float scale) {
+			this.direction = direction;
+			this.center = center;
 			if(sprite != null) sprite.getTexture().dispose();
-			sprite = new Sprite(new Texture(Gdx.files.internal(d + ".png")));
+			sprite = new Sprite(new Texture(Gdx.files.internal(direction + ".png")));
 			sprite.setScale(scale);
-			sprite.setCenter(v.x, v.y);
+			sprite.setCenter(center.x, center.y);
 		}
 
 	}
@@ -155,17 +155,15 @@ public class LineSplit extends ApplicationAdapter {
 
 		currentDirection = Direction.N;
 
-		lineStart = new Vector2(new Vector2(pad + (pad / 2), pad + (pad / 2)));
-		head = new Cursor(lineStart, linewidth / 2);
-		lineEnd = calcDir(lineStart, currentDirection);
+		cursor = new Cursor(new Vector2(120, 120), linewidth / 2);
+		lastPosition = cursor.center;
+		nextPosition = calcDir(cursor.center, currentDirection);
+		currentLine = new Line(cursor.center, lastPosition);
+		lines.add(currentLine);
+		caps.add(cursor.center); // Add first cap to the lines
 
-		tmpline = new Line(lineStart, lineStart); // Create the first line (the one the head follows)
-
-		lines.add(tmpline); // Add the first line
-
-		dots.add(new Dot(Direction.E, new Vector2(120, 280), scale)); // DEBUG (add first test dot where animation plays
-
-		caps.add(tmpline.start); // DEBUG Add the first cap where the head is
+		// TODO create grid system for dots (eg (0,0) bottom left corner of grid)
+		dots.add(new Dot(Direction.E, new Vector2(120, 280), dotScale)); // DEBUG DOT
 	}
 
 	public void inputs() {
@@ -197,7 +195,7 @@ public class LineSplit extends ApplicationAdapter {
 
 	public void edit() {
 		if(tool == Tool.draw) {
-			if(tmpdot == null) tmpdot = new Dot(dotType, mouse, scale);
+			if(currentEditDot == null) currentEditDot = new Dot(dotType, mouse, dotScale);
 
 			if(Gdx.input.justTouched()) {
 				boolean isDotInPosition = false;
@@ -210,8 +208,8 @@ public class LineSplit extends ApplicationAdapter {
 				if(isDotInPosition) {
 					System.out.println("There is already a dot in position: " + mouseClick);
 				} else {
-					dots.add(tmpdot);
-					tmpdot = null;
+					dots.add(currentEditDot);
+					currentEditDot = null;
 				}
 			} else {
 				Vector2 snap = new Vector2(0, 0);
@@ -220,10 +218,10 @@ public class LineSplit extends ApplicationAdapter {
 				snap.x += line;
 				snap.y += line;
 
-				tmpdot.update(dotType, snap, scale);
+				currentEditDot.update(dotType, snap, dotScale);
 			}
 		} else if(tool == Tool.erase) {
-			if(tmpdot != null) tmpdot = null;
+			if(currentEditDot != null) currentEditDot = null;
 			if(Gdx.input.justTouched()) {
 				for(int i = 0; i < dots.size; i++) {
 					Dot d = dots.get(i);
@@ -236,163 +234,149 @@ public class LineSplit extends ApplicationAdapter {
 	}
 
 	public void reset() {
+		lerpTimeStarted = globalTime;
 		lines.clear();
 		caps.clear();
 		currentDirection = Direction.N;
-		head.center = new Vector2(pad + (pad / 2), pad + (pad / 2));
-		lineStart = head.center;
-		lineEnd = calcDir(lineStart, currentDirection);
-		tmpline.start = lineStart;
-		tmpline.end = lineStart;
-		lines.add(tmpline);
+		cursor.center = new Vector2(120, 120); // DEBUG (STC)
+		lastPosition = cursor.center;
+		nextPosition = calcDir(cursor.center, currentDirection);
+		currentLine = new Line(cursor.center, lastPosition);
+		lines.add(currentLine);
 		dead = false;
 		animCounter = 0;
 		playanim = false;
 		playedanim = false;
-		caps.add(tmpline.start);
+		caps.add(lastPosition);
 	}
 
-	public void update() {
-		if(edit) {
-			edit();
-		} else {
-			if(tmpdot != null) tmpdot = null;
-		}
+	float movementSpeed = 1.5f;
 
-		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) {
-			reset();
-		}
+	public void update() {
+
+		if(edit) edit();
+		else { if(currentEditDot != null) currentEditDot = null; }
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !dead) {
-			play = !play;
 			lerpTimeStarted = globalTime;
+			play = !play;
 		}
 
 		if(play && !dead) {
-			float timeSinceStarted = globalTime - lerpTimeStarted;
+			float timeSinceStartedMoving = globalTime - lerpTimeStarted;
 
-			float percent;
+			float movementPercent;
 
-			if(currentDirection == Direction.NW || currentDirection == Direction.NE ||
-					currentDirection == Direction.SW || currentDirection == Direction.SE) {
-				percent = timeSinceStarted / 0.3f;
+			if(currentDirection == Direction.NW || currentDirection == Direction.NE
+					|| currentDirection == Direction.SW || currentDirection == Direction.SE) {
+				movementPercent = timeSinceStartedMoving / (movementSpeed + 0.1f);
 			} else {
-				percent = timeSinceStarted / 0.2f;
+				movementPercent = timeSinceStartedMoving / movementSpeed;
 			}
 
-			head.center = lerp(lineStart, lineEnd, percent);
-			tmpline.end = head.center;
+			cursor.center = lerp(lastPosition, nextPosition, movementPercent);
+			currentLine.start = cursor.center;
 
-			if((head.center.x < (pad + head.radius) || head.center.x > ScreenWidth - pad - head.radius) || (
-					head.center.y < (pad + head.radius) || head.center.y > ScreenHeight - pad - head.radius)) {
+			if((cursor.center.x < (pad + cursor.radius) || cursor.center.x > (ScreenWidth - pad - cursor.radius)) || (
+					cursor.center.y < (pad + cursor.radius) || cursor.center.y > ScreenHeight - pad - cursor.radius)) {
 				play = false;
 				dead = true;
 			}
 
-			if(percent >= 1.0f) {
-				head.center = lineEnd;
-				lineStart = head.center;
+			if(movementPercent >= 1.0f) {
+
 				lerpTimeStarted = globalTime;
 
+				cursor.center = nextPosition;
+
+				lastPosition = cursor.center;
+
 				for(Dot d : dots) {
-					if(isInsideCircle(head.center, d.center, 1)) {
+					if(isInsideCircle(cursor.center, d.center, 1)) {
+						System.out.println("Hit dot : " + d.direction + " at location : " + d.center); // DEBUG
 						if(d.direction == Direction.M) {
-							dead = true;
 							play = false;
+							dead = true;
 						} else {
-							tmpline.end = lineEnd;
 							currentDirection = d.direction;
-							lines.add(new Line(tmpline));
-							caps.add(tmpline.end);
-							tmpline.start = lineStart;
+							caps.add(cursor.center);
+							lines.add(new Line(currentLine));
+							currentLine.start = cursor.center;
+							currentLine.end = cursor.center;
 							playanim = true;
 						}
 					}
 				}
 
-				lineEnd = calcDir(head.center, currentDirection);
+				nextPosition = calcDir(cursor.center, currentDirection);
 			}
 		}
 	}
 
+	int ctr = 0;
 	@Override
 	public void render () {
+		deltaTime = Gdx.graphics.getDeltaTime();
+		globalTime += deltaTime;
 
 		inputs();
+
+		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) reset();
 
 		update();
 
 		Gdx.gl.glClearColor(backgroundcolor.r, backgroundcolor.g, backgroundcolor.b, backgroundcolor.a);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-		deltaTime = Gdx.graphics.getDeltaTime();
-		globalTime += deltaTime;
-
-		shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-
-		shapeRenderer.setColor(Color.DARK_GRAY);
-		for(int i = pad; i <= ScreenWidth - (pad * 2); i += pad) {
-			shapeRenderer.line(i, pad, i, ScreenHeight - pad);
+		// SHAPE RENDERING =============================================================================================
+		// DRAW GRID
+		float gridlinewidth = linewidth / 8;
+		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+		shapeRenderer.setColor(Color.LIGHT_GRAY);
+		for(int i = pad; i <= ScreenWidth - pad; i += pad) {
+			shapeRenderer.rectLine(i, pad, i, ScreenHeight - pad, gridlinewidth);
 		}
-		for(int i = pad; i <= ScreenHeight - (pad * 2); i += pad) {
-			shapeRenderer.line(pad, i, ScreenWidth - pad, i);
+		for(int i = pad; i <= ScreenHeight - pad; i += pad) {
+			shapeRenderer.rectLine(pad, i, ScreenWidth - pad, i, gridlinewidth);
 		}
-		shapeRenderer.rect(pad, pad, ScreenWidth - (pad * 2), ScreenHeight - (pad * 2));
+		// DRAW GRID CORNERS
+		shapeRenderer.circle(pad, pad, gridlinewidth / 2);
+		shapeRenderer.circle(pad, ScreenHeight - pad, gridlinewidth / 2);
+		shapeRenderer.circle(ScreenWidth - pad, pad, gridlinewidth / 2);
+		shapeRenderer.circle(ScreenWidth - pad, ScreenHeight - pad, gridlinewidth / 2);
 
-		shapeRenderer.set(ShapeRenderer.ShapeType.Filled);
+		// DRAW LINES
 		for(Line l : lines) {
-			if(dead) {
-				shapeRenderer.setColor(linedeathcolor); // DEATH
-				shapeRenderer.rectLine(l.start, l.end, linewidth);
-			} else {
-				shapeRenderer.setColor(linelifecolor); // LIFE
-				shapeRenderer.rectLine(l.start, l.end, linewidth);
-			}
+			if(dead) shapeRenderer.setColor(linedeathcolor);
+			else     shapeRenderer.setColor(linelifecolor);
+
+			shapeRenderer.rectLine(l.start, l.end, linewidth);
 		}
 
+		// DRAW CAPS
 		for(Vector2 v : caps) {
 			shapeRenderer.circle(v.x, v.y, linewidth / 2, 16);
 		}
 
-		shapeRenderer.circle(head.center.x, head.center.y, head.radius);
+		// DRAW CURSOR
+		shapeRenderer.circle(cursor.center.x, cursor.center.y, cursor.radius);
 
-		if(playanim){
-			if(!playedanim) {
-				shapeRenderer.arc(120, 280, 40, 270, animCounter, 45);
-				shapeRenderer.arc(120, 280, 40, 270, -animCounter, 45);
-				if (animCounter < 180) {
-					animCounter += animspeed;
-				} else {
-					playedanim = true;
-				}
-			} else {
-				shapeRenderer.arc(120, 280, 40, 0, animCounter, 45);
-				shapeRenderer.arc(120, 280, 40, 0, -animCounter, 45);
-				if (animCounter > 0) {
-					animCounter -= animspeed;
-				} else {
-					playanim = false;
-				}
-			}
-
-		}
+		if(playanim) playAnim();
 
 		shapeRenderer.end();
+		// =============================================================================================================
 
+		// SPRITE BATCH ================================================================================================
 		batch.begin();
 
-		for(Dot d : dots) {
-			if(d != null) {
-				d.sprite.draw(batch);
-			}
-		}
+		if(currentEditDot != null) currentEditDot.sprite.draw(batch);
 
-		if(tmpdot != null) {
-			tmpdot.sprite.draw(batch);
+		for(Dot d : dots) {
+			d.sprite.draw(batch);
 		}
 
 		debugMessage.draw(batch, "Direction: " + currentDirection, ScreenWidth / 2, ScreenHeight - 10);
-		debugMessage.draw(batch, "Cursor: " + head.center, ScreenWidth / 2, ScreenHeight - 30);
+		debugMessage.draw(batch, "Cursor: " + cursor.center, ScreenWidth / 2, ScreenHeight - 30);
 		debugMessage.draw(batch, "Mouse: " + mouse, ScreenWidth / 2, ScreenHeight - 50);
 
 		debugMessage.draw(batch, "Dots: " + dots.size, ScreenWidth - 70, ScreenHeight - 10);
@@ -402,8 +386,8 @@ public class LineSplit extends ApplicationAdapter {
 		if(play) debugMessage.draw(batch, "Play", 30, ScreenHeight - 10);
 		else     debugMessage.draw(batch, "Paused", 30, ScreenHeight - 10);
 
-		debugMessage.draw(batch, "Start: " + lineStart, 120, ScreenHeight - 10);
-		debugMessage.draw(batch, "End:   " + lineEnd, 120, ScreenHeight - 30);
+		debugMessage.draw(batch, "Start: " + nextPosition, 120, ScreenHeight - 10);
+		debugMessage.draw(batch, "End:   " + lastPosition, 120, ScreenHeight - 30);
 
 		if(edit) {
 			if (tool == Tool.draw) {
@@ -414,13 +398,40 @@ public class LineSplit extends ApplicationAdapter {
 		}
 
 		batch.end();
+		// =============================================================================================================
 
+		// ERASE DOTS ==================================================================================================
 		if(edit && (tool == Tool.erase)) {
 			beginblend();
 			for(Dot d : dots) {
 				shapeRenderer.circle(d.center.x, d.center.y, eraseRadius);
 			}
 			endblend();
+		}
+		// =============================================================================================================
+
+		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+		// DEBUG
+		shapeRenderer.setColor(Color.GREEN);
+		shapeRenderer.circle(nextPosition.x, nextPosition.y, 4);
+		shapeRenderer.setColor(Color.RED);
+		shapeRenderer.circle(lastPosition.x, lastPosition.y, 4);
+		shapeRenderer.end();
+	}
+
+	public void playAnim() {
+		if(!playedanim) {
+			shapeRenderer.arc(120, 280, 40, 270, animCounter, 45);
+			shapeRenderer.arc(120, 280, 40, 270, -animCounter, 45);
+
+			if(animCounter < 180) animCounter += animspeed;
+			else playedanim = true;
+		} else {
+			shapeRenderer.arc(120, 280, 40, 0, animCounter, 45);
+			shapeRenderer.arc(120, 280, 40, 0, -animCounter, 45);
+
+			if(animCounter > 0) animCounter -= animspeed;
+			else playanim = false;
 		}
 	}
 
