@@ -26,6 +26,7 @@ public class LineSplit extends ApplicationAdapter {
 	float linewidth = 16.0f;
 	float dotScale = 0.06f;
 	Direction currentDirection;
+	Direction previousDirection;
 
 	Vector2 lastPosition, nextPosition;
 
@@ -54,9 +55,7 @@ public class LineSplit extends ApplicationAdapter {
 	int animCounter = 0;
 	boolean playanim = false;
 	boolean playedanim = false;
-	float animspeed = 7;
-
-	float lerpTimeStarted;
+	float animspeed = 8;
 
 	Color linedeathcolor = new Color(GColor.LIGHT_BLUE_800);
 	Color linelifecolor = new Color(GColor.LIGHT_BLUE_600);
@@ -154,6 +153,7 @@ public class LineSplit extends ApplicationAdapter {
 		topedge = new Vector2(ScreenWidth - pad, ScreenHeight - pad); // Vector that captures the top edge of the screen
 
 		currentDirection = Direction.N;
+		previousDirection = Direction.N;
 
 		cursor = new Cursor(new Vector2(120, 120), linewidth / 2);
 		lastPosition = cursor.center;
@@ -163,7 +163,6 @@ public class LineSplit extends ApplicationAdapter {
 		caps.add(cursor.center); // Add first cap to the lines
 
 		// TODO create grid system for dots (eg (0,0) bottom left corner of grid)
-		dots.add(new Dot(Direction.E, new Vector2(120, 280), dotScale)); // DEBUG DOT
 	}
 
 	public void inputs() {
@@ -234,7 +233,6 @@ public class LineSplit extends ApplicationAdapter {
 	}
 
 	public void reset() {
-		lerpTimeStarted = globalTime;
 		lines.clear();
 		caps.clear();
 		currentDirection = Direction.N;
@@ -248,9 +246,13 @@ public class LineSplit extends ApplicationAdapter {
 		playanim = false;
 		playedanim = false;
 		caps.add(lastPosition);
+		lerpTimer = 0.0f;
+		movePercent = 0.0f;
 	}
 
-	float movementSpeed = 1.5f;
+	float movementSpeed = 0.4f;
+	float lerpTimer = 0.0f;
+	float movePercent = 0.0f;
 
 	public void update() {
 
@@ -258,23 +260,21 @@ public class LineSplit extends ApplicationAdapter {
 		else { if(currentEditDot != null) currentEditDot = null; }
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !dead) {
-			lerpTimeStarted = globalTime;
 			play = !play;
 		}
 
-		if(play && !dead) {
-			float timeSinceStartedMoving = globalTime - lerpTimeStarted;
+		if(play) {
+			lerpTimer += deltaTime;
 
-			float movementPercent;
-
-			if(currentDirection == Direction.NW || currentDirection == Direction.NE
+			if (currentDirection == Direction.NW || currentDirection == Direction.NE
 					|| currentDirection == Direction.SW || currentDirection == Direction.SE) {
-				movementPercent = timeSinceStartedMoving / (movementSpeed + 0.1f);
+				movePercent = lerpTimer / (movementSpeed + 0.1f);
 			} else {
-				movementPercent = timeSinceStartedMoving / movementSpeed;
+				movePercent = lerpTimer / movementSpeed;
 			}
 
-			cursor.center = lerp(lastPosition, nextPosition, movementPercent);
+
+			cursor.center = lerp(lastPosition, nextPosition, movePercent);
 			currentLine.start = cursor.center;
 
 			if((cursor.center.x < (pad + cursor.radius) || cursor.center.x > (ScreenWidth - pad - cursor.radius)) || (
@@ -283,9 +283,10 @@ public class LineSplit extends ApplicationAdapter {
 				dead = true;
 			}
 
-			if(movementPercent >= 1.0f) {
+			if(movePercent >= 1.0f) {
 
-				lerpTimeStarted = globalTime;
+				lerpTimer = 0.0f;
+				movePercent = 0.0f;
 
 				cursor.center = nextPosition;
 
@@ -304,7 +305,11 @@ public class LineSplit extends ApplicationAdapter {
 							currentLine.start = cursor.center;
 							currentLine.end = cursor.center;
 							playanim = true;
+							playedanim = false;
+							animationPos = cursor.center;
+							play = false;
 						}
+						System.out.println("Previous: " + previousDirection + " | Current : " + currentDirection);
 					}
 				}
 
@@ -313,7 +318,8 @@ public class LineSplit extends ApplicationAdapter {
 		}
 	}
 
-	int ctr = 0;
+	Vector2 animationPos = new Vector2(0,0);
+
 	@Override
 	public void render () {
 		deltaTime = Gdx.graphics.getDeltaTime();
@@ -361,7 +367,7 @@ public class LineSplit extends ApplicationAdapter {
 		// DRAW CURSOR
 		shapeRenderer.circle(cursor.center.x, cursor.center.y, cursor.radius);
 
-		if(playanim) playAnim();
+		if(playanim) playAnim(animationPos);
 
 		shapeRenderer.end();
 		// =============================================================================================================
@@ -419,19 +425,33 @@ public class LineSplit extends ApplicationAdapter {
 		shapeRenderer.end();
 	}
 
-	public void playAnim() {
+	float circleRadius = 40.0f;
+	public void playAnim(Vector2 v) {
+		Vector2 a = calcAngle();
 		if(!playedanim) {
-			shapeRenderer.arc(120, 280, 40, 270, animCounter, 45);
-			shapeRenderer.arc(120, 280, 40, 270, -animCounter, 45);
+			shapeRenderer.arc(v.x, v.y, circleRadius, a.x, animCounter, 45);
+			shapeRenderer.arc(v.x, v.y, circleRadius, a.x, -animCounter, 45);
 
 			if(animCounter < 180) animCounter += animspeed;
-			else playedanim = true;
+			else {
+				playedanim = true;
+			}
 		} else {
-			shapeRenderer.arc(120, 280, 40, 0, animCounter, 45);
-			shapeRenderer.arc(120, 280, 40, 0, -animCounter, 45);
+			shapeRenderer.arc(v.x, v.y, circleRadius, a.y, animCounter, 45);
+			shapeRenderer.arc(v.x, v.y, circleRadius, a.y, -animCounter, 45);
 
 			if(animCounter > 0) animCounter -= animspeed;
-			else playanim = false;
+			else {
+				playanim = false;
+				for(int i = 0; i < dots.size; i++) {
+					Dot d = dots.get(i);
+					if(isInsideCircle(cursor.center, d.center, 1)) {
+						dots.removeIndex(i);
+					}
+				}
+				play = true;
+				previousDirection = currentDirection;
+			}
 		}
 	}
 
@@ -479,6 +499,33 @@ public class LineSplit extends ApplicationAdapter {
 			case NW: v = new Vector2(start.x - pad, start.y + pad); break;
 			case M:  v = start;
 		}
+		return v;
+	}
+
+	public Vector2 calcAngle() {
+		Vector2 v = new Vector2(0.0f, 0.0f);
+
+		switch(previousDirection) {
+			case N:  v.x = 270; break;
+			case NE: v.x = 225; break;
+			case E:  v.x = 180; break;
+			case SE: v.x = 135; break;
+			case S:  v.x = 90;  break;
+			case SW: v.x = 45;  break;
+			case W:  v.x = 0;   break;
+			case NW: v.x = 315; break;
+		}
+		switch(currentDirection) {
+			case N:  v.y = 90; break;
+			case NE: v.y = 45; break;
+			case E:  v.y = 0; break;
+			case SE: v.y = 315; break;
+			case S:  v.y = 270;  break;
+			case SW: v.y = 225;  break;
+			case W:  v.y = 180;   break;
+			case NW: v.y = 135; break;
+		}
+
 		return v;
 	}
 }
