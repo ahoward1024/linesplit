@@ -7,8 +7,8 @@ import com.esw.linesplit.LineSplit;
 public class DesktopLauncher {
 	public static void main (String[] arg) {
 		LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
-		config.width = 720;
-		config.height = 1280;
+		config.width = 504;
+		config.height = 896;
 		config.samples = 16;
 		new LwjglApplication(new LineSplit(config.width, config.height), config);
 	}

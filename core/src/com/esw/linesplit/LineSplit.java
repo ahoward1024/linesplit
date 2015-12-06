@@ -15,7 +15,7 @@ import com.badlogic.gdx.utils.Array;
 
 public class LineSplit extends ApplicationAdapter {
 
-	int ScreenWidth, ScreenHeight;
+	int WindowWidth, WindowHeight;
 	int pad, line, eraseRadius;
 
 	ShapeRenderer shapeRenderer;
@@ -66,8 +66,8 @@ public class LineSplit extends ApplicationAdapter {
 	//===================================================================================================
 
 	public LineSplit(int w, int h) {
-		ScreenWidth = w;
-		ScreenHeight = h;
+		WindowWidth = w;
+		WindowHeight = h;
 	}
 
 	enum Tool {
@@ -135,11 +135,27 @@ public class LineSplit extends ApplicationAdapter {
 
 	}
 
+	int getGCD(int w, int h) {
+		int num ;
+		if(w > h) num = w;
+		else num = h;
+
+		for(int i = num - 1; i > 0; i--) {
+			if((w % i == 0) && (h % i == 0)) return i;
+		}
+		return 0;
+	}
+
 	@Override
 	public void create () {
-		pad = 80; // Buffer from the ege of the screen to the bottom left corner of the grid (GCD of ScreenWidth and ScreenHeight)
+
+		System.out.println(getGCD(WindowWidth, WindowHeight));
+
+		pad = getGCD(WindowWidth, WindowHeight); // Buffer from the ege of the screen to the bottom left corner of the grid (GCD of WindowWidth and WindowHeight)
 		line = pad / 2; // The width of each of the lines
 		eraseRadius = line - (line / 4); // Radius of erase circles
+
+		System.out.println(new GridSquare(3, 4, pad));
 
 		shapeRenderer = new ShapeRenderer();
 		shapeRenderer.setAutoShapeType(true);
@@ -150,24 +166,24 @@ public class LineSplit extends ApplicationAdapter {
 		debugMessage.setColor(Color.BLACK); // DEBUG
 
 		botedge = new Vector2(pad, pad); // Vector that captures the bottom edge of the screen
-		topedge = new Vector2(ScreenWidth - pad, ScreenHeight - pad); // Vector that captures the top edge of the screen
+		topedge = new Vector2(WindowWidth - pad, WindowHeight - pad); // Vector that captures the top edge of the screen
 
 		currentDirection = Direction.N;
 		previousDirection = Direction.N;
 
-		cursor = new Cursor(new Vector2(120, 120), linewidth / 2);
+		cursor = new Cursor(GridSquare.grid(0, 0, pad), linewidth / 2);
 		lastPosition = cursor.center;
 		nextPosition = calcDir(cursor.center, currentDirection);
 		currentLine = new Line(cursor.center, lastPosition);
 		lines.add(currentLine);
 		caps.add(cursor.center); // Add first cap to the lines
 
-		// TODO create grid system for dots (eg (0,0) bottom left corner of grid)
+
 	}
 
 	public void inputs() {
 		mouse.x = Gdx.input.getX();
-		mouse.y = ScreenHeight - Gdx.input.getY();
+		mouse.y = WindowHeight - Gdx.input.getY();
 
 		if(Gdx.input.justTouched()) mouseClick = new Vector2(mouse.x, mouse.y);
 		else mouseClick = new Vector2(0,0);
@@ -277,8 +293,8 @@ public class LineSplit extends ApplicationAdapter {
 			cursor.center = lerp(lastPosition, nextPosition, movePercent);
 			currentLine.start = cursor.center;
 
-			if((cursor.center.x < (pad + cursor.radius) || cursor.center.x > (ScreenWidth - pad - cursor.radius)) || (
-					cursor.center.y < (pad + cursor.radius) || cursor.center.y > ScreenHeight - pad - cursor.radius)) {
+			if((cursor.center.x < (pad + cursor.radius) || cursor.center.x > (WindowWidth - pad - cursor.radius)) || (
+					cursor.center.y < (pad + cursor.radius) || cursor.center.y > WindowHeight - pad - cursor.radius)) {
 				play = false;
 				dead = true;
 			}
@@ -339,17 +355,17 @@ public class LineSplit extends ApplicationAdapter {
 		float gridlinewidth = linewidth / 8;
 		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 		shapeRenderer.setColor(Color.LIGHT_GRAY);
-		for(int i = pad; i <= ScreenWidth - pad; i += pad) {
-			shapeRenderer.rectLine(i, pad, i, ScreenHeight - pad, gridlinewidth);
+		for(int i = pad; i <= WindowWidth - pad; i += pad) {
+			shapeRenderer.rectLine(i, pad, i, WindowHeight - pad, gridlinewidth);
 		}
-		for(int i = pad; i <= ScreenHeight - pad; i += pad) {
-			shapeRenderer.rectLine(pad, i, ScreenWidth - pad, i, gridlinewidth);
+		for(int i = pad; i <= WindowHeight - pad; i += pad) {
+			shapeRenderer.rectLine(pad, i, WindowWidth - pad, i, gridlinewidth);
 		}
 		// DRAW GRID CORNERS
 		shapeRenderer.circle(pad, pad, gridlinewidth / 2);
-		shapeRenderer.circle(pad, ScreenHeight - pad, gridlinewidth / 2);
-		shapeRenderer.circle(ScreenWidth - pad, pad, gridlinewidth / 2);
-		shapeRenderer.circle(ScreenWidth - pad, ScreenHeight - pad, gridlinewidth / 2);
+		shapeRenderer.circle(pad, WindowHeight - pad, gridlinewidth / 2);
+		shapeRenderer.circle(WindowWidth - pad, pad, gridlinewidth / 2);
+		shapeRenderer.circle(WindowWidth - pad, WindowHeight - pad, gridlinewidth / 2);
 
 		// DRAW LINES
 		for(Line l : lines) {
@@ -381,25 +397,25 @@ public class LineSplit extends ApplicationAdapter {
 			d.sprite.draw(batch);
 		}
 
-		debugMessage.draw(batch, "Direction: " + currentDirection, ScreenWidth / 2, ScreenHeight - 10);
-		debugMessage.draw(batch, "Cursor: " + cursor.center, ScreenWidth / 2, ScreenHeight - 30);
-		debugMessage.draw(batch, "Mouse: " + mouse, ScreenWidth / 2, ScreenHeight - 50);
+		debugMessage.draw(batch, "Direction: " + currentDirection, WindowWidth / 2, WindowHeight - 10);
+		debugMessage.draw(batch, "Cursor: " + cursor.center, WindowWidth / 2, WindowHeight - 30);
+		debugMessage.draw(batch, "Mouse: " + mouse, WindowWidth / 2, WindowHeight - 50);
 
-		debugMessage.draw(batch, "Dots: " + dots.size, ScreenWidth - 70, ScreenHeight - 10);
-		debugMessage.draw(batch, "Lines: " + lines.size, ScreenWidth - 70, ScreenHeight - 30);
-		debugMessage.draw(batch, "Caps: " + caps.size, ScreenWidth - 70, ScreenHeight - 50);
+		debugMessage.draw(batch, "Dots: " + dots.size, WindowWidth - 70, WindowHeight - 10);
+		debugMessage.draw(batch, "Lines: " + lines.size, WindowWidth - 70, WindowHeight - 30);
+		debugMessage.draw(batch, "Caps: " + caps.size, WindowWidth - 70, WindowHeight - 50);
 
-		if(play) debugMessage.draw(batch, "Play", 30, ScreenHeight - 10);
-		else     debugMessage.draw(batch, "Paused", 30, ScreenHeight - 10);
+		if(play) debugMessage.draw(batch, "Play", 30, WindowHeight - 10);
+		else     debugMessage.draw(batch, "Paused", 30, WindowHeight - 10);
 
-		debugMessage.draw(batch, "Start: " + nextPosition, 120, ScreenHeight - 10);
-		debugMessage.draw(batch, "End:   " + lastPosition, 120, ScreenHeight - 30);
+		debugMessage.draw(batch, "Start: " + nextPosition, 120, WindowHeight - 10);
+		debugMessage.draw(batch, "End:   " + lastPosition, 120, WindowHeight - 30);
 
 		if(edit) {
 			if (tool == Tool.draw) {
-				debugMessage.draw(batch, "Draw mode", 30, ScreenHeight - 30);
+				debugMessage.draw(batch, "Draw mode", 30, WindowHeight - 30);
 			} else if (tool == Tool.erase) {
-				debugMessage.draw(batch, "Erase mode", 30, ScreenHeight - 30);
+				debugMessage.draw(batch, "Erase mode", 30, WindowHeight - 30);
 			}
 		}
 
@@ -422,6 +438,7 @@ public class LineSplit extends ApplicationAdapter {
 		shapeRenderer.circle(nextPosition.x, nextPosition.y, 4);
 		shapeRenderer.setColor(Color.RED);
 		shapeRenderer.circle(lastPosition.x, lastPosition.y, 4);
+		shapeRenderer.setColor(Color.BROWN);
 		shapeRenderer.end();
 	}
 
