@@ -16,7 +16,7 @@ import com.badlogic.gdx.utils.Array;
 public class LineSplit extends ApplicationAdapter {
 
 	int WindowWidth, WindowHeight;
-	int pad, line, eraseRadius;
+	int pad, halfGridSquare, eraseRadius;
 
 	ShapeRenderer shapeRenderer;
 	SpriteBatch batch;
@@ -24,7 +24,7 @@ public class LineSplit extends ApplicationAdapter {
 	Dot currentEditDot;
 	Line currentLine;
 	float linewidth = 16.0f;
-	float dotScale = 0.06f;
+	float dotScale;
 	Direction currentDirection;
 	Direction previousDirection;
 
@@ -56,6 +56,7 @@ public class LineSplit extends ApplicationAdapter {
 	boolean playanim = false;
 	boolean playedanim = false;
 	float animspeed = 8;
+	float animRadius;
 
 	Color linedeathcolor = new Color(GColor.LIGHT_BLUE_800);
 	Color linelifecolor = new Color(GColor.LIGHT_BLUE_600);
@@ -148,14 +149,12 @@ public class LineSplit extends ApplicationAdapter {
 
 	@Override
 	public void create () {
-
-		System.out.println(getGCD(WindowWidth, WindowHeight));
-
 		pad = getGCD(WindowWidth, WindowHeight); // Buffer from the ege of the screen to the bottom left corner of the grid (GCD of WindowWidth and WindowHeight)
-		line = pad / 2; // The width of each of the lines
-		eraseRadius = line - (line / 4); // Radius of erase circles
-
-		System.out.println(new GridSquare(3, 4, pad));
+		halfGridSquare = pad / 2; // The width of each of the lines
+		eraseRadius = halfGridSquare - (halfGridSquare / 4); // Radius of erase circles
+		linewidth = eraseRadius / 2.0f;
+		dotScale = (eraseRadius / 1000.0f) * 2.0f;
+		animRadius = eraseRadius + (linewidth / 2.0f);
 
 		shapeRenderer = new ShapeRenderer();
 		shapeRenderer.setAutoShapeType(true);
@@ -178,6 +177,10 @@ public class LineSplit extends ApplicationAdapter {
 		lines.add(currentLine);
 		caps.add(cursor.center); // Add first cap to the lines
 
+		dots.add(new Dot(Direction.E, GridSquare.grid(0, 2, pad), dotScale)); // DEBUG
+		dots.add(new Dot(Direction.N, GridSquare.grid(2, 2, pad), dotScale)); // DEBUG
+		dots.add(new Dot(Direction.W, GridSquare.grid(2, 4, pad), dotScale)); // DEBUG
+		dots.add(new Dot(Direction.M, GridSquare.grid(0, 4, pad), dotScale)); // DEBUG
 
 	}
 
@@ -230,8 +233,8 @@ public class LineSplit extends ApplicationAdapter {
 				Vector2 snap = new Vector2(0, 0);
 				snap.x = (float) (Math.floor(mouse.x / pad)) * pad;
 				snap.y = (float) (Math.floor(mouse.y / pad)) * pad;
-				snap.x += line;
-				snap.y += line;
+				snap.x += halfGridSquare;
+				snap.y += halfGridSquare;
 
 				currentEditDot.update(dotType, snap, dotScale);
 			}
@@ -252,7 +255,7 @@ public class LineSplit extends ApplicationAdapter {
 		lines.clear();
 		caps.clear();
 		currentDirection = Direction.N;
-		cursor.center = new Vector2(120, 120); // DEBUG (STC)
+		cursor.center = GridSquare.grid(0, 0, pad); // DEBUG (STC)
 		lastPosition = cursor.center;
 		nextPosition = calcDir(cursor.center, currentDirection);
 		currentLine = new Line(cursor.center, lastPosition);
@@ -351,6 +354,7 @@ public class LineSplit extends ApplicationAdapter {
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
 		// SHAPE RENDERING =============================================================================================
+
 		// DRAW GRID
 		float gridlinewidth = linewidth / 8;
 		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -442,30 +446,29 @@ public class LineSplit extends ApplicationAdapter {
 		shapeRenderer.end();
 	}
 
-	float circleRadius = 40.0f;
 	public void playAnim(Vector2 v) {
 		Vector2 a = calcAngle();
 		if(!playedanim) {
-			shapeRenderer.arc(v.x, v.y, circleRadius, a.x, animCounter, 45);
-			shapeRenderer.arc(v.x, v.y, circleRadius, a.x, -animCounter, 45);
+			shapeRenderer.arc(v.x, v.y, animRadius, a.x, animCounter, 45);
+			shapeRenderer.arc(v.x, v.y, animRadius, a.x, -animCounter, 45);
 
 			if(animCounter < 180) animCounter += animspeed;
 			else {
 				playedanim = true;
 			}
 		} else {
-			shapeRenderer.arc(v.x, v.y, circleRadius, a.y, animCounter, 45);
-			shapeRenderer.arc(v.x, v.y, circleRadius, a.y, -animCounter, 45);
+			shapeRenderer.arc(v.x, v.y, animRadius, a.y, animCounter, 45);
+			shapeRenderer.arc(v.x, v.y, animRadius, a.y, -animCounter, 45);
 
 			if(animCounter > 0) animCounter -= animspeed;
 			else {
 				playanim = false;
-				for(int i = 0; i < dots.size; i++) {
+				/*for(int i = 0; i < dots.size; i++) {
 					Dot d = dots.get(i);
 					if(isInsideCircle(cursor.center, d.center, 1)) {
-						dots.removeIndex(i);
+						// dots.removeIndex(i); // REMOVE DOT (STC?)
 					}
-				}
+				}*/
 				play = true;
 				previousDirection = currentDirection;
 			}
