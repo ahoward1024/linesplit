@@ -58,6 +58,11 @@ public class LineSplit extends ApplicationAdapter {
 	float animspeed = 8;
 	float animRadius;
 
+	float movementSpeed = 0.4f;
+	float lerpTimer = 0.0f;
+	float movePercent = 0.0f;
+
+
 	Color linedeathcolor = new Color(GColor.LIGHT_BLUE_800);
 	Color linelifecolor = new Color(GColor.LIGHT_BLUE_600);
 	Color backgroundcolor = new Color(GColor.LIGHT_BLUE_50);
@@ -170,13 +175,6 @@ public class LineSplit extends ApplicationAdapter {
 		currentDirection = Direction.N;
 		previousDirection = Direction.N;
 
-		cursor = new Cursor(GridSquare.grid(0, 0, pad), linewidth / 2);
-		lastPosition = cursor.center;
-		nextPosition = calcDir(cursor.center, currentDirection);
-		currentLine = new Line(cursor.center, lastPosition);
-		lines.add(currentLine);
-		caps.add(cursor.center); // Add first cap to the lines
-
 		dots.add(new Dot(Direction.E, GridSquare.grid(0, 2, pad), dotScale)); // DEBUG
 		dots.add(new Dot(Direction.N, GridSquare.grid(2, 2, pad), dotScale)); // DEBUG
 		dots.add(new Dot(Direction.W, GridSquare.grid(2, 4, pad), dotScale)); // DEBUG
@@ -193,22 +191,31 @@ public class LineSplit extends ApplicationAdapter {
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.TAB)) edit = !edit;
 
-		if(Gdx.input.isKeyJustPressed(Input.Keys.A)) {
-			if(tool == Tool.draw) tool = Tool.erase;
-			else if(tool == Tool.erase) tool = Tool.draw;
+		if(edit) {
+			if (Gdx.input.isKeyJustPressed(Input.Keys.A)) {
+				if (tool == Tool.draw) tool = Tool.erase;
+				else if (tool == Tool.erase) tool = Tool.draw;
+			}
+
+			if (Gdx.input.isKeyJustPressed(Input.Keys.D) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_5))
+				dotType = Direction.M;
+			if (Gdx.input.isKeyJustPressed(Input.Keys.W) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_7))
+				dotType = Direction.NW;
+			if (Gdx.input.isKeyJustPressed(Input.Keys.E) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_8))
+				dotType = Direction.N;
+			if (Gdx.input.isKeyJustPressed(Input.Keys.R) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_9))
+				dotType = Direction.NE;
+			if (Gdx.input.isKeyJustPressed(Input.Keys.F) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_6))
+				dotType = Direction.E;
+			if (Gdx.input.isKeyJustPressed(Input.Keys.V) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3))
+				dotType = Direction.SE;
+			if (Gdx.input.isKeyJustPressed(Input.Keys.C) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_2))
+				dotType = Direction.S;
+			if (Gdx.input.isKeyJustPressed(Input.Keys.X) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_1))
+				dotType = Direction.SW;
+			if (Gdx.input.isKeyJustPressed(Input.Keys.S) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_4))
+				dotType = Direction.W;
 		}
-
-		if(Gdx.input.isKeyJustPressed(Input.Keys.B)) playanim = true;
-
-		if(Gdx.input.isKeyJustPressed(Input.Keys.D) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_5)) dotType = Direction.M;
-		if(Gdx.input.isKeyJustPressed(Input.Keys.W) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_7)) dotType = Direction.NW;
-		if(Gdx.input.isKeyJustPressed(Input.Keys.E) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_8)) dotType = Direction.N;
-		if(Gdx.input.isKeyJustPressed(Input.Keys.R) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_9)) dotType = Direction.NE;
-		if(Gdx.input.isKeyJustPressed(Input.Keys.F) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_6)) dotType = Direction.E;
-		if(Gdx.input.isKeyJustPressed(Input.Keys.V) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)) dotType = Direction.SE;
-		if(Gdx.input.isKeyJustPressed(Input.Keys.C) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) dotType = Direction.S;
-		if(Gdx.input.isKeyJustPressed(Input.Keys.X) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) dotType = Direction.SW;
-		if(Gdx.input.isKeyJustPressed(Input.Keys.S) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_4)) dotType = Direction.W;
 	}
 
 	public void edit() {
@@ -252,34 +259,56 @@ public class LineSplit extends ApplicationAdapter {
 	}
 
 	public void reset() {
+		play = false;
+		cursor = null;
+		currentLine = null;
 		lines.clear();
 		caps.clear();
+		nextPosition = null;
+		lastPosition = null;
 		currentDirection = Direction.N;
-		cursor.center = GridSquare.grid(0, 0, pad); // DEBUG (STC)
-		lastPosition = cursor.center;
-		nextPosition = calcDir(cursor.center, currentDirection);
-		currentLine = new Line(cursor.center, lastPosition);
-		lines.add(currentLine);
 		dead = false;
 		animCounter = 0;
 		playanim = false;
 		playedanim = false;
-		caps.add(lastPosition);
 		lerpTimer = 0.0f;
 		movePercent = 0.0f;
 	}
 
-	float movementSpeed = 0.4f;
-	float lerpTimer = 0.0f;
-	float movePercent = 0.0f;
-
 	public void update() {
 
-		if(edit) edit();
-		else { if(currentEditDot != null) currentEditDot = null; }
+		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) reset();
 
-		if(Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !dead) {
-			play = !play;
+		boolean start = true; // Should the line start lerping?
+		if(play && Gdx.input.justTouched()) {
+			reset();
+			start = false; // Set to false so the line does not start lerping immediately after a reset
+		}
+
+		if(edit) edit();
+		if(start) {
+			// TODO fix play pause for mouse click
+			if(currentEditDot != null) currentEditDot = null;
+			if((Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.justTouched())) {
+				play = !play;
+
+				Vector2 snap = new Vector2(0, 0);
+				snap.x = (float) (Math.floor(mouseClick.x / pad)) * pad;
+				snap.y = (float) (Math.floor(mouseClick.y / pad)) * pad;
+				snap.x += halfGridSquare;
+				snap.y += halfGridSquare;
+
+				cursor = new Cursor(snap, linewidth / 2);
+				lastPosition = cursor.center;
+				nextPosition = calcDir(cursor.center, currentDirection);
+				currentLine = new Line(cursor.center, lastPosition);
+
+				lines.add(currentLine);
+				caps.add(cursor.center); // Add first cap to the lines
+
+				lastPosition = cursor.center;
+				nextPosition = calcDir(cursor.center, currentDirection);
+			}
 		}
 
 		if(play) {
@@ -346,9 +375,8 @@ public class LineSplit extends ApplicationAdapter {
 
 		inputs();
 
-		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) reset();
-
-		update();
+		if(edit) edit();
+		else update();
 
 		Gdx.gl.glClearColor(backgroundcolor.r, backgroundcolor.g, backgroundcolor.b, backgroundcolor.a);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
@@ -373,19 +401,21 @@ public class LineSplit extends ApplicationAdapter {
 
 		// DRAW LINES
 		for(Line l : lines) {
-			if(dead) shapeRenderer.setColor(linedeathcolor);
-			else     shapeRenderer.setColor(linelifecolor);
+			if(l != null) {
+				if (dead) shapeRenderer.setColor(linedeathcolor);
+				else shapeRenderer.setColor(linelifecolor);
 
-			shapeRenderer.rectLine(l.start, l.end, linewidth);
+				shapeRenderer.rectLine(l.start, l.end, linewidth);
+			}
 		}
 
 		// DRAW CAPS
 		for(Vector2 v : caps) {
-			shapeRenderer.circle(v.x, v.y, linewidth / 2, 16);
+			if(v != null) shapeRenderer.circle(v.x, v.y, linewidth / 2, 16);
 		}
 
 		// DRAW CURSOR
-		shapeRenderer.circle(cursor.center.x, cursor.center.y, cursor.radius);
+		if(cursor != null) shapeRenderer.circle(cursor.center.x, cursor.center.y, cursor.radius);
 
 		if(playanim) playAnim(animationPos);
 
@@ -402,7 +432,7 @@ public class LineSplit extends ApplicationAdapter {
 		}
 
 		debugMessage.draw(batch, "Direction: " + currentDirection, WindowWidth / 2, WindowHeight - 10);
-		debugMessage.draw(batch, "Cursor: " + cursor.center, WindowWidth / 2, WindowHeight - 30);
+		if(cursor != null) debugMessage.draw(batch, "Cursor: " + cursor.center, WindowWidth / 2, WindowHeight - 30);
 		debugMessage.draw(batch, "Mouse: " + mouse, WindowWidth / 2, WindowHeight - 50);
 
 		debugMessage.draw(batch, "Dots: " + dots.size, WindowWidth - 70, WindowHeight - 10);
@@ -439,9 +469,9 @@ public class LineSplit extends ApplicationAdapter {
 		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 		// DEBUG
 		shapeRenderer.setColor(Color.GREEN);
-		shapeRenderer.circle(nextPosition.x, nextPosition.y, 4);
+		if(nextPosition != null) shapeRenderer.circle(nextPosition.x, nextPosition.y, 4);
 		shapeRenderer.setColor(Color.RED);
-		shapeRenderer.circle(lastPosition.x, lastPosition.y, 4);
+		if(lastPosition != null) shapeRenderer.circle(lastPosition.x, lastPosition.y, 4);
 		shapeRenderer.setColor(Color.BROWN);
 		shapeRenderer.end();
 	}
