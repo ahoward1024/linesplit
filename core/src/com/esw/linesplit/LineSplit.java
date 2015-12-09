@@ -279,35 +279,33 @@ public class LineSplit extends ApplicationAdapter {
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) reset();
 
-		boolean start = true; // Should the line start lerping?
-		if(play && Gdx.input.justTouched()) {
-			reset();
-			start = false; // Set to false so the line does not start lerping immediately after a reset
-		}
-
 		if(edit) edit();
-		if(start) {
+		else {
 			// TODO fix play pause for mouse click
 			if(currentEditDot != null) currentEditDot = null;
 			if((Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.justTouched())) {
 				play = !play;
 
-				Vector2 snap = new Vector2(0, 0);
-				snap.x = (float) (Math.floor(mouseClick.x / pad)) * pad;
-				snap.y = (float) (Math.floor(mouseClick.y / pad)) * pad;
-				snap.x += halfGridSquare;
-				snap.y += halfGridSquare;
+				if(play && !playanim) {
+					Vector2 snap = new Vector2(0, 0);
+					snap.x = (float) (Math.floor(mouseClick.x / pad)) * pad;
+					snap.y = (float) (Math.floor(mouseClick.y / pad)) * pad;
+					snap.x += halfGridSquare;
+					snap.y += halfGridSquare;
 
-				cursor = new Cursor(snap, linewidth / 2);
-				lastPosition = cursor.center;
-				nextPosition = calcDir(cursor.center, currentDirection);
-				currentLine = new Line(cursor.center, lastPosition);
+					cursor = new Cursor(snap, linewidth / 2);
+					lastPosition = cursor.center;
+					nextPosition = calcDir(cursor.center, currentDirection);
+					currentLine = new Line(cursor.center, lastPosition);
 
-				lines.add(currentLine);
-				caps.add(cursor.center); // Add first cap to the lines
+					lines.add(currentLine);
+					caps.add(cursor.center); // Add first cap to the lines
 
-				lastPosition = cursor.center;
-				nextPosition = calcDir(cursor.center, currentDirection);
+					lastPosition = cursor.center;
+					nextPosition = calcDir(cursor.center, currentDirection);
+				} else {
+					reset();
+				}
 			}
 		}
 
