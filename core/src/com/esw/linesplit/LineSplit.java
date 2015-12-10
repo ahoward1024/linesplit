@@ -187,7 +187,6 @@ public class LineSplit extends ApplicationAdapter {
 		mouse.y = WindowHeight - Gdx.input.getY();
 
 		if(Gdx.input.justTouched()) mouseClick = new Vector2(mouse.x, mouse.y);
-		else mouseClick = new Vector2(0,0);
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.TAB)) edit = !edit;
 
@@ -281,7 +280,6 @@ public class LineSplit extends ApplicationAdapter {
 
 		if(edit) edit();
 		else {
-			// TODO fix play pause for mouse click
 			if(currentEditDot != null) currentEditDot = null;
 			if((Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.justTouched())) {
 				play = !play;
@@ -292,6 +290,10 @@ public class LineSplit extends ApplicationAdapter {
 					snap.y = (float) (Math.floor(mouseClick.y / pad)) * pad;
 					snap.x += halfGridSquare;
 					snap.y += halfGridSquare;
+
+					mouseClick = snap;
+
+					// TODO angle of click that sets direction of line
 
 					cursor = new Cursor(snap, linewidth / 2);
 					lastPosition = cursor.center;
@@ -309,7 +311,7 @@ public class LineSplit extends ApplicationAdapter {
 			}
 		}
 
-		if(play) {
+		if(false) {
 			lerpTimer += deltaTime;
 
 			if (currentDirection == Direction.NW || currentDirection == Direction.NE
@@ -465,6 +467,10 @@ public class LineSplit extends ApplicationAdapter {
 		// =============================================================================================================
 
 		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+		if(Gdx.input.isTouched()) {
+			shapeRenderer.setColor(Color.BLACK);
+			shapeRenderer.line(mouse, mouseClick);
+		}
 		// DEBUG
 		shapeRenderer.setColor(Color.GREEN);
 		if(nextPosition != null) shapeRenderer.circle(nextPosition.x, nextPosition.y, 4);
