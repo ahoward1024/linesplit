@@ -158,7 +158,7 @@ public class LineSplit extends ApplicationAdapter {
 		halfGridSquare = pad / 2; // The width of each of the lines
 		eraseRadius = halfGridSquare - (halfGridSquare / 4); // Radius of erase circles
 		linewidth = eraseRadius / 2.0f;
-		dotScale = (eraseRadius / 1000.0f) * 2.0f;
+		dotScale = (eraseRadius / 1000.0f);
 		animRadius = eraseRadius + (linewidth / 2.0f);
 
 		shapeRenderer = new ShapeRenderer();
