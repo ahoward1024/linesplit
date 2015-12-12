@@ -5,11 +5,13 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 
@@ -20,6 +22,7 @@ public class LineSplit extends ApplicationAdapter {
 
 	ShapeRenderer shapeRenderer;
 	SpriteBatch batch;
+	OrthographicCamera camera;
 
 	Dot currentEditDot;
 	Line currentLine;
@@ -111,7 +114,7 @@ public class LineSplit extends ApplicationAdapter {
 	}
 
 	class Cursor {
-		Vector2 center;
+		Vector2 center = new Vector2(0,0);
 		float radius;
 
 		public Cursor(Vector2 v, float r) {
@@ -164,7 +167,12 @@ public class LineSplit extends ApplicationAdapter {
 		shapeRenderer = new ShapeRenderer();
 		shapeRenderer.setAutoShapeType(true);
 
+		camera = new OrthographicCamera(WindowWidth, WindowHeight);
+		camera.position.set(camera.viewportWidth / 2, camera.viewportHeight / 2, 0.0f);
+		camera.update();
+
 		batch = new SpriteBatch();
+		batch.setProjectionMatrix(camera.combined);
 
 		debugMessage = new BitmapFont(); // DEBUG
 		debugMessage.setColor(Color.BLACK); // DEBUG
@@ -179,6 +187,8 @@ public class LineSplit extends ApplicationAdapter {
 		dots.add(new Dot(Direction.N, GridSquare.grid(2, 2, pad), dotScale)); // DEBUG
 		dots.add(new Dot(Direction.W, GridSquare.grid(2, 4, pad), dotScale)); // DEBUG
 		dots.add(new Dot(Direction.M, GridSquare.grid(0, 4, pad), dotScale)); // DEBUG
+
+		cursor = new Cursor(new Vector2(), 0);
 
 	}
 
@@ -259,7 +269,7 @@ public class LineSplit extends ApplicationAdapter {
 
 	public void reset() {
 		play = false;
-		cursor = null;
+		cursor = new Cursor(new Vector2(), 0);
 		currentLine = null;
 		lines.clear();
 		caps.clear();
@@ -273,6 +283,8 @@ public class LineSplit extends ApplicationAdapter {
 		lerpTimer = 0.0f;
 		movePercent = 0.0f;
 	}
+
+	float angle = 0.0f;
 
 	public void update() {
 
@@ -293,8 +305,6 @@ public class LineSplit extends ApplicationAdapter {
 
 					mouseClick = snap;
 
-					// TODO angle of click that sets direction of line
-
 					cursor = new Cursor(snap, linewidth / 2);
 					lastPosition = cursor.center;
 					nextPosition = calcDir(cursor.center, currentDirection);
@@ -309,6 +319,21 @@ public class LineSplit extends ApplicationAdapter {
 					reset();
 				}
 			}
+		}
+
+		if(Gdx.input.isTouched()) {
+			angle = MathUtils.atan2(mouse.y - mouseClick.y, mouse.x - mouseClick.x);
+			angle *= (180 / MathUtils.PI);
+			if(angle <  0) angle = 360 + angle;
+
+			if((angle < 30 && angle > 0) || (angle < 360 && angle > 330)) angle = 0;
+			else if(angle < 60 && angle > 30) angle = 45;
+			else if(angle < 120 && angle > 60) angle = 90;
+			else if(angle < 150 && angle > 120) angle = 135;
+			else if(angle < 210 && angle > 150) angle = 180;
+			else if(angle < 240 && angle > 210) angle = 225;
+			else if(angle < 300 && angle > 240) angle = 270;
+			else if(angle < 330 && angle > 300) angle = 315;
 		}
 
 		if(false) {
@@ -380,6 +405,7 @@ public class LineSplit extends ApplicationAdapter {
 
 		Gdx.gl.glClearColor(backgroundcolor.r, backgroundcolor.g, backgroundcolor.b, backgroundcolor.a);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+		camera.update();
 
 		// SHAPE RENDERING =============================================================================================
 
@@ -431,9 +457,9 @@ public class LineSplit extends ApplicationAdapter {
 			d.sprite.draw(batch);
 		}
 
-		debugMessage.draw(batch, "Direction: " + currentDirection, WindowWidth / 2, WindowHeight - 10);
-		if(cursor != null) debugMessage.draw(batch, "Cursor: " + cursor.center, WindowWidth / 2, WindowHeight - 30);
-		debugMessage.draw(batch, "Mouse: " + mouse, WindowWidth / 2, WindowHeight - 50);
+		debugMessage.draw(batch, "Cursor: " + cursor.center, WindowWidth / 2, WindowHeight - 10);
+		debugMessage.draw(batch, "Mouse: " + mouse, WindowWidth / 2, WindowHeight - 30);
+		debugMessage.draw(batch, "Angle:" + angle, WindowWidth / 2, WindowHeight - 50);
 
 		debugMessage.draw(batch, "Dots: " + dots.size, WindowWidth - 70, WindowHeight - 10);
 		debugMessage.draw(batch, "Lines: " + lines.size, WindowWidth - 70, WindowHeight - 30);
@@ -444,6 +470,7 @@ public class LineSplit extends ApplicationAdapter {
 
 		debugMessage.draw(batch, "Start: " + nextPosition, 120, WindowHeight - 10);
 		debugMessage.draw(batch, "End:   " + lastPosition, 120, WindowHeight - 30);
+		debugMessage.draw(batch, "Direction: " + currentDirection, 120, WindowHeight - 50);
 
 		if(edit) {
 			if (tool == Tool.draw) {
@@ -466,18 +493,43 @@ public class LineSplit extends ApplicationAdapter {
 		}
 		// =============================================================================================================
 
-		shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+		shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 		if(Gdx.input.isTouched()) {
+			int linel = 200;
+			float hyp = (float)Math.sqrt(Math.pow(linel, 2) + Math.pow(linel, 2));
+			hyp /= 2;
+			shapeRenderer.setColor(Color.PURPLE);
+			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + linel, mouseClick.y); // 0
+			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + hyp, mouseClick.y + hyp); // 45
+			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x, mouseClick.y + linel); // 90
+			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - hyp, mouseClick.y + hyp); // 135
+			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - linel, mouseClick.y); // 180
+			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - hyp, mouseClick.y - hyp); // 225
+			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x, mouseClick.y - linel); // 270
+			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + hyp, mouseClick.y - hyp); // 335
+
 			shapeRenderer.setColor(Color.BLACK);
 			shapeRenderer.line(mouse, mouseClick);
+			shapeRenderer.setColor(Color.ORANGE);
+			shapeRenderer.arc(mouseClick.x, mouseClick.y, 100, 0, angle, 32);
 		}
 		// DEBUG
+		shapeRenderer.set(ShapeRenderer.ShapeType.Filled);
 		shapeRenderer.setColor(Color.GREEN);
 		if(nextPosition != null) shapeRenderer.circle(nextPosition.x, nextPosition.y, 4);
 		shapeRenderer.setColor(Color.RED);
 		if(lastPosition != null) shapeRenderer.circle(lastPosition.x, lastPosition.y, 4);
 		shapeRenderer.setColor(Color.BROWN);
 		shapeRenderer.end();
+	}
+
+	void drawDottedLine(int dotDist, float x1, float y1, float x2, float y2) {
+		Vector2 vec2 = new Vector2(x2, y2).sub(new Vector2(x1, y1));
+		float length = vec2.len();
+		for(int i = 0; i < length; i += dotDist) {
+			vec2.clamp(length - i, length - i);
+			shapeRenderer.point(x1 + vec2.x, y1 + vec2.y, 0);
+		}
 	}
 
 	public void playAnim(Vector2 v) {
