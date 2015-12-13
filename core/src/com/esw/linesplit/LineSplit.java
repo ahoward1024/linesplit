@@ -326,17 +326,19 @@ public class LineSplit extends ApplicationAdapter {
 			angle *= (180 / MathUtils.PI);
 			if(angle <  0) angle = 360 + angle;
 
-			if((angle < 30 && angle > 0) || (angle < 360 && angle > 330)) angle = 0;
-			else if(angle < 60 && angle > 30) angle = 45;
-			else if(angle < 120 && angle > 60) angle = 90;
-			else if(angle < 150 && angle > 120) angle = 135;
-			else if(angle < 210 && angle > 150) angle = 180;
-			else if(angle < 240 && angle > 210) angle = 225;
-			else if(angle < 300 && angle > 240) angle = 270;
-			else if(angle < 330 && angle > 300) angle = 315;
+			if((angle < 30 && angle > 0) || (angle < 360 && angle > 330)) { angle = 0; currentDirection = Direction.E; }
+			else if(angle < 60 && angle > 30) { angle = 45;  currentDirection = Direction.NE; }
+			else if(angle < 120 && angle > 60) { angle = 90; currentDirection = Direction.N; }
+			else if(angle < 150 && angle > 120) { angle = 135; currentDirection = Direction.NW; }
+			else if(angle < 210 && angle > 150) { angle = 180; currentDirection = Direction.W; }
+			else if(angle < 240 && angle > 210) { angle = 225; currentDirection = Direction.SW; }
+			else if(angle < 300 && angle > 240) { angle = 270; currentDirection = Direction.S; }
+			else if(angle < 330 && angle > 300) { angle = 315; currentDirection = Direction.SE; }
+
+			nextPosition = calcDir(cursor.center, currentDirection);
 		}
 
-		if(false) {
+		if(play && !Gdx.input.isTouched()) { // If play
 			lerpTimer += deltaTime;
 
 			if (currentDirection == Direction.NW || currentDirection == Direction.NE
@@ -389,6 +391,8 @@ public class LineSplit extends ApplicationAdapter {
 				nextPosition = calcDir(cursor.center, currentDirection);
 			}
 		}
+
+		if(dead && Gdx.input.justTouched()) reset();
 	}
 
 	Vector2 animationPos = new Vector2(0,0);
@@ -498,20 +502,15 @@ public class LineSplit extends ApplicationAdapter {
 			int linel = 200;
 			float hyp = (float)Math.sqrt(Math.pow(linel, 2) + Math.pow(linel, 2));
 			hyp /= 2;
-			shapeRenderer.setColor(Color.PURPLE);
-			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + linel, mouseClick.y); // 0
-			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + hyp, mouseClick.y + hyp); // 45
-			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x, mouseClick.y + linel); // 90
-			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - hyp, mouseClick.y + hyp); // 135
-			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - linel, mouseClick.y); // 180
-			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - hyp, mouseClick.y - hyp); // 225
-			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x, mouseClick.y - linel); // 270
-			shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + hyp, mouseClick.y - hyp); // 335
-
 			shapeRenderer.setColor(Color.BLACK);
-			shapeRenderer.line(mouse, mouseClick);
-			shapeRenderer.setColor(Color.ORANGE);
-			shapeRenderer.arc(mouseClick.x, mouseClick.y, 100, 0, angle, 32);
+			if(angle == 0) shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + linel, mouseClick.y); // 0
+			else if(angle == 45) shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + hyp, mouseClick.y + hyp); // 45
+			else if(angle == 90) shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x, mouseClick.y + linel); // 90
+			else if(angle == 135) shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - hyp, mouseClick.y + hyp); // 135
+			else if(angle == 180) shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - linel, mouseClick.y); // 180
+			else if(angle == 225) shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x - hyp, mouseClick.y - hyp); // 225
+			else if(angle == 270) shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x, mouseClick.y - linel); // 270
+			else if(angle == 315) shapeRenderer.line(mouseClick.x, mouseClick.y, mouseClick.x + hyp, mouseClick.y - hyp); // 315
 		}
 		// DEBUG
 		shapeRenderer.set(ShapeRenderer.ShapeType.Filled);
