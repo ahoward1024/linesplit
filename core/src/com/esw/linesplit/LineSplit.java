@@ -33,7 +33,8 @@ public class LineSplit extends ApplicationAdapter {
 
 	Vector2 lastPosition, nextPosition;
 
-	Cursor cursor;
+	Cursor head;
+	Cursor tail;
 
 	Array<Dot> dots = new Array<Dot>();
 	Array<Line> lines = new Array<Line>();
@@ -188,7 +189,8 @@ public class LineSplit extends ApplicationAdapter {
 		dots.add(new Dot(Direction.W, GridSquare.grid(2, 4, pad), dotScale)); // DEBUG
 		dots.add(new Dot(Direction.M, GridSquare.grid(0, 4, pad), dotScale)); // DEBUG
 
-		cursor = new Cursor(new Vector2(), 0);
+		head = new Cursor(new Vector2(), 0);
+		tail = new Cursor(new Vector2(), 0);
 
 	}
 
@@ -269,7 +271,8 @@ public class LineSplit extends ApplicationAdapter {
 
 	public void reset() {
 		play = false;
-		cursor = new Cursor(new Vector2(), 0);
+		head = new Cursor(new Vector2(), 0);
+		tail = new Cursor(new Vector2(), 0);
 		currentLine = null;
 		lines.clear();
 		caps.clear();
@@ -280,12 +283,14 @@ public class LineSplit extends ApplicationAdapter {
 		animCounter = 0;
 		playanim = false;
 		playedanim = false;
+		moveTail = false;
 		lerpTimer = 0.0f;
 		movePercent = 0.0f;
 	}
 
 	float angle = 0.0f;
-
+	boolean moveTail = false;
+	Vector2 startPos;
 	public void update() {
 
 		if(Gdx.input.isKeyJustPressed(Input.Keys.G)) reset();
@@ -305,16 +310,18 @@ public class LineSplit extends ApplicationAdapter {
 
 					mouseClick = snap;
 
-					cursor = new Cursor(snap, linewidth / 2);
-					lastPosition = cursor.center;
-					nextPosition = calcDir(cursor.center, currentDirection);
-					currentLine = new Line(cursor.center, lastPosition);
+					head = new Cursor(snap, linewidth / 2);
+					tail = new Cursor(snap, linewidth / 2);
+					lastPosition = head.center;
+					nextPosition = calcDir(head.center, currentDirection);
+					currentLine = new Line(head.center, lastPosition);
+					startPos = head.center;
 
 					lines.add(currentLine);
-					caps.add(cursor.center); // Add first cap to the lines
+					caps.add(head.center); // Add first cap to the lines
 
-					lastPosition = cursor.center;
-					nextPosition = calcDir(cursor.center, currentDirection);
+					lastPosition = head.center;
+					nextPosition = calcDir(head.center, currentDirection);
 				} else {
 					reset();
 				}
@@ -335,10 +342,10 @@ public class LineSplit extends ApplicationAdapter {
 			else if(angle < 300 && angle > 240) { angle = 270; currentDirection = Direction.S; }
 			else if(angle < 330 && angle > 300) { angle = 315; currentDirection = Direction.SE; }
 
-			nextPosition = calcDir(cursor.center, currentDirection);
+			nextPosition = calcDir(head.center, currentDirection);
 		}
 
-		if(play && !Gdx.input.isTouched()) { // If play
+		if(play && !Gdx.input.isTouched()) {
 			lerpTimer += deltaTime;
 
 			if (currentDirection == Direction.NW || currentDirection == Direction.NE
@@ -348,12 +355,19 @@ public class LineSplit extends ApplicationAdapter {
 				movePercent = lerpTimer / movementSpeed;
 			}
 
+			head.center = lerp(lastPosition, nextPosition, movePercent);
+			currentLine.start = head.center;
 
-			cursor.center = lerp(lastPosition, nextPosition, movePercent);
-			currentLine.start = cursor.center;
+			if(Vector2.dst(head.center.x,  head.center.y, startPos.x, startPos.y) > (pad * 3)) {
+				moveTail = true;
+			}
 
-			if((cursor.center.x < (pad + cursor.radius) || cursor.center.x > (WindowWidth - pad - cursor.radius)) || (
-					cursor.center.y < (pad + cursor.radius) || cursor.center.y > WindowHeight - pad - cursor.radius)) {
+			if(moveTail) {
+				tail.center = lerp(lastPosition, nextPosition, movePercent);
+			}
+
+			if((head.center.x < (pad + head.radius) || head.center.x > (WindowWidth - pad - head.radius)) || (
+					head.center.y < (pad + head.radius) || head.center.y > WindowHeight - pad - head.radius)) {
 				play = false;
 				dead = true;
 			}
@@ -363,32 +377,32 @@ public class LineSplit extends ApplicationAdapter {
 				lerpTimer = 0.0f;
 				movePercent = 0.0f;
 
-				cursor.center = nextPosition;
+				head.center = nextPosition;
 
-				lastPosition = cursor.center;
+				lastPosition = head.center;
 
 				for(Dot d : dots) {
-					if(isInsideCircle(cursor.center, d.center, 1)) {
+					if(isInsideCircle(head.center, d.center, 1)) {
 						System.out.println("Hit dot : " + d.direction + " at location : " + d.center); // DEBUG
 						if(d.direction == Direction.M) {
 							play = false;
 							dead = true;
 						} else {
 							currentDirection = d.direction;
-							caps.add(cursor.center);
+							caps.add(head.center);
 							lines.add(new Line(currentLine));
-							currentLine.start = cursor.center;
-							currentLine.end = cursor.center;
+							currentLine.start = head.center;
+							currentLine.end = head.center;
 							playanim = true;
 							playedanim = false;
-							animationPos = cursor.center;
+							animationPos = head.center;
 							play = false;
 						}
 						System.out.println("Previous: " + previousDirection + " | Current : " + currentDirection);
 					}
 				}
 
-				nextPosition = calcDir(cursor.center, currentDirection);
+				nextPosition = calcDir(head.center, currentDirection);
 			}
 		}
 
@@ -445,7 +459,9 @@ public class LineSplit extends ApplicationAdapter {
 		}
 
 		// DRAW CURSOR
-		if(cursor != null) shapeRenderer.circle(cursor.center.x, cursor.center.y, cursor.radius);
+		if(head != null) shapeRenderer.circle(head.center.x, head.center.y, head.radius);
+		shapeRenderer.setColor(Color.FOREST);
+		if(tail != null) shapeRenderer.circle(tail.center.x, tail.center.y, tail.radius);
 
 		if(playanim) playAnim(animationPos);
 
@@ -461,7 +477,7 @@ public class LineSplit extends ApplicationAdapter {
 			d.sprite.draw(batch);
 		}
 
-		debugMessage.draw(batch, "Cursor: " + cursor.center, WindowWidth / 2, WindowHeight - 10);
+		debugMessage.draw(batch, "Cursor: " + head.center, WindowWidth / 2, WindowHeight - 10);
 		debugMessage.draw(batch, "Mouse: " + mouse, WindowWidth / 2, WindowHeight - 30);
 		debugMessage.draw(batch, "Angle:" + angle, WindowWidth / 2, WindowHeight - 50);
 
@@ -550,7 +566,7 @@ public class LineSplit extends ApplicationAdapter {
 				playanim = false;
 				/*for(int i = 0; i < dots.size; i++) {
 					Dot d = dots.get(i);
-					if(isInsideCircle(cursor.center, d.center, 1)) {
+					if(isInsideCircle(head.center, d.center, 1)) {
 						// dots.removeIndex(i); // REMOVE DOT (STC?)
 					}
 				}*/
